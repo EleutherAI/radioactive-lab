@@ -19,6 +19,8 @@ from src.datasets.folder import default_loader
 from src.model import build_model
 from src.utils import initialize_exp, bool_flag, get_optimizer, repeat_to
 
+import toml
+
 image_mean = torch.Tensor(NORMALIZE_IMAGENET.mean).view(-1, 1, 1)
 image_std = torch.Tensor(NORMALIZE_IMAGENET.std).view(-1, 1, 1)
 
@@ -299,23 +301,6 @@ class Params:
         self.debug_train = False # Use valid sets for train sets (faster loading)    
         self.debug_slurm = False # Debug from a SLURM job    
         self.debug = False # Enable all debug flags
-
-import toml
-
-def getConfig():
-
-    # Read local `config.toml` file.
-    config = toml.load('config.toml')
-    print(config)
-
-    # Retrieving a dictionary of values
-    config['project']
-    config.get('project')
-
-    # Retrieving a value
-    config['project']['author']
-    config.get('project').get('author')
-
 
 if __name__ == '__main__':
     ## generate parser / parse parameters
