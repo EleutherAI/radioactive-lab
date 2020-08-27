@@ -16,38 +16,40 @@ from .datasets.sampler import DistributedSampler, SeededDistributedSampler
 from .datasets.watermarked_folder import WatermarkedSet
 from .data_augmentations import CenterCrop, RandomResizedCropFlip, DifferentiableDataAugmentation
 
-logger = getLogger()
+#logger = getLogger()
 
-DATASETS = {
-    'cifar10': {
-        'train': '/private/home/asablayrolles/data/radioactive/cifar10/',
-        'valid': '/private/home/asablayrolles/data/radioactive/cifar10/vanilla_test',
-        # 'test': '/private/home/asablayrolles/data/radioactive/cifar10/vanilla_test',
-        'num_classes': 10,
-        'img_size': 40,
-        'crop_size': 32,
-    },
-    'imagenet': {
-        'train': '/datasets01_101/imagenet_full_size/061417/train',
-        'valid': '/datasets01_101/imagenet_full_size/061417/val',
-        'num_classes': 1000,
-        'img_size': 256,
-        'crop_size': 224,
-    },
-    'places205': {
-        'train': '/datasets01_101/places205/121517/pytorch/train',
-        'valid': '/datasets01_101/places205/121517/pytorch/val',
-        'num_classes': 205,
-        'img_size': 256,
-        'crop_size': 224,
-    }
-}
+# Comment out broken hardcoded paths - may need to fix later
 
-SUBCLASSES = {
-    "imagenet": {
-        n_cl: list(np.load("/private/home/asablayrolles/data/radioactive/imagenet_classes/%d.npy" % n_cl)) for n_cl in [10, 20, 50, 100, 200, 500]
-    }
-}
+#DATASETS = {
+#    'cifar10': {
+#        'train': '/private/home/asablayrolles/data/radioactive/cifar10/',
+#        'valid': '/private/home/asablayrolles/data/radioactive/cifar10/vanilla_test',
+#        # 'test': '/private/home/asablayrolles/data/radioactive/cifar10/vanilla_test',
+#        'num_classes': 10,
+#        'img_size': 40,
+#        'crop_size': 32,
+#    },
+#    'imagenet': {
+#        'train': '/datasets01_101/imagenet_full_size/061417/train',
+#        'valid': '/datasets01_101/imagenet_full_size/061417/val',
+#        'num_classes': 1000,
+#        'img_size': 256,
+#        'crop_size': 224,
+#    },
+#    'places205': {
+#        'train': '/datasets01_101/places205/121517/pytorch/train',
+#        'valid': '/datasets01_101/places205/121517/pytorch/val',
+#        'num_classes': 205,
+#        'img_size': 256,
+#        'crop_size': 224,
+#    }
+#}
+
+#SUBCLASSES = {
+#    "imagenet": {
+#        n_cl: list(np.load("/private/home/asablayrolles/data/radioactive/imagenet_classes/%d.npy" % n_cl)) for n_cl in [10, 20, 50, 100, 200, 500]
+#    }
+#}
 
 def populate_dataset(params):
     assert params.dataset in DATASETS

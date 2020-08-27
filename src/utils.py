@@ -4,7 +4,7 @@
 # This source code is licensed under the CC-by-NC license found in the
 # LICENSE file in the root directory of this source tree.
 #
-import faiss
+#import faiss DOESN'T WORK ON WINDOWS EASILY
 import os
 import re
 import sys
@@ -191,12 +191,12 @@ def init_distributed_mode(params):
 
 def initialize_exp(params):
     """
-    Initialize the experience:
+    Initialize the experiment:
     - dump parameters
     - create a logger
     """
-    # dump parameters
-    get_dump_path(params)
+    # dump parameters (dump_path/params.pkl)
+    get_dump_path(params) # Does a lot more then just get the path....
     pickle.dump(params, open(os.path.join(params.dump_path, 'params.pkl'), 'wb'))
 
     # get running command
@@ -217,15 +217,15 @@ def initialize_exp(params):
     # check experiment name
     assert len(params.exp_name.strip()) > 0
 
-    # create a logger
+    # create a logger (dump_path/train.log)
     logger = create_logger(os.path.join(params.dump_path, 'train.log'), rank=getattr(params, 'global_rank', 0))
     logger.info("============ Initialized logger ============")
     logger.info("\n".join("%s: %s" % (k, str(v)) for k, v in sorted(dict(vars(params)).items())))
     logger.info("The experiment will be stored in %s\n" % params.dump_path)
     logger.info("Running command: %s" % command)
     logger.info("")
-    return logger
 
+    return logger
 
 def get_dump_path(params):
     """
@@ -389,104 +389,104 @@ def get_optimizer(parameters, s):
     return optim_fn(parameters, **optim_params), lr_schedule
 
 
-def get_nearestneighbors_faiss(xq, xb, k, verbose=False):
-    assert xq.dtype == xb.dtype == np.float32
-    if verbose:
-        print("Computing nearest neighbors (Faiss)")
+#def get_nearestneighbors_faiss(xq, xb, k, verbose=False):
+#    assert xq.dtype == xb.dtype == np.float32
+#    if verbose:
+#        print("Computing nearest neighbors (Faiss)")
 
-    print("Creating index")
-    index = faiss.IndexFlatL2(xq.shape[1])
-    print("Putting to GPU")
-    res = faiss.StandardGpuResources()
-    index = faiss.index_cpu_to_gpu(res, 0, index)
-    # index = faiss.index_cpu_to_all_gpus(index)
+#    print("Creating index")
+#    index = faiss.IndexFlatL2(xq.shape[1])
+#    print("Putting to GPU")
+#    res = faiss.StandardGpuResources()
+#    index = faiss.index_cpu_to_gpu(res, 0, index)
+#    # index = faiss.index_cpu_to_all_gpus(index)
 
-    start = time.time()
-    print("Adding db")
-    index.add(xb)
-    print("Searching")
-    _, I = index.search(xq, k)
-    if verbose:
-        print("  NN search done in %.2f s" % (
-            time.time() - start))
+#    start = time.time()
+#    print("Adding db")
+#    index.add(xb)
+#    print("Searching")
+#    _, I = index.search(xq, k)
+#    if verbose:
+#        print("  NN search done in %.2f s" % (
+#            time.time() - start))
 
-    return I
-
-
-def swig_ptr_from_FloatTensor(x):
-    assert x.is_contiguous()
-    assert x.dtype == torch.float32
-    return faiss.cast_integer_to_float_ptr(x.storage().data_ptr() + x.storage_offset() * 4)
+#    return I
 
 
-def swig_ptr_from_LongTensor(x):
-    assert x.is_contiguous()
-    assert x.dtype == torch.int64, 'dtype=%s' % x.dtype
-    return faiss.cast_integer_to_long_ptr(x.storage().data_ptr() + x.storage_offset() * 8)
+#def swig_ptr_from_FloatTensor(x):
+#    assert x.is_contiguous()
+#    assert x.dtype == torch.float32
+#    return faiss.cast_integer_to_float_ptr(x.storage().data_ptr() + x.storage_offset() * 4)
 
 
-def get_knn_faiss(xq, xb, k, split_base=-1, distance='dot_product'):
-    if split_base == -1:
-        return __get_knn_faiss(xq, xb, k, distance)
-    else:
-        distances, indices = [], []
-        bases = torch.chunk(xb, split_base)
-
-        offset = 0
-        for base in bases:
-            D, I = __get_knn_faiss(xq, base, k, distance)
-            I += offset
-            offset += base.size(0)
-
-            distances.append(D)
-            indices.append(I)
-
-        distances = torch.cat(distances, dim=1)
-        indices = torch.cat(indices, dim=1)
-        n = distances.size(0)
-
-        # distances can be L2 distances or dot product
-        factor = -1 if distance == 'dot_product' else 1
-        distances *= factor
-        order = distances.argsort(dim=1)[:, :k]
-
-        I = indices[torch.arange(n).view(-1, 1), order]
-        D = distances[torch.arange(n).view(-1, 1), order]
-        D *= factor
-
-        return D, I
+#def swig_ptr_from_LongTensor(x):
+#    assert x.is_contiguous()
+#    assert x.dtype == torch.int64, 'dtype=%s' % x.dtype
+#    return faiss.cast_integer_to_long_ptr(x.storage().data_ptr() + x.storage_offset() * 8)
 
 
-def __get_knn_faiss(xq, xb, k, distance='dot_product'):
-    """
-    `metric` can be faiss.METRIC_INNER_PRODUCT or faiss.METRIC_L2
-    https://github.com/facebookresearch/faiss/blob/master/gpu/test/test_pytorch_faiss.py
-    """
-    assert xb.device == xq.device
-    assert distance in ['dot_product', 'l2']
-    metric = faiss.METRIC_INNER_PRODUCT if distance == 'dot_product' else faiss.METRIC_L2
+#def get_knn_faiss(xq, xb, k, split_base=-1, distance='dot_product'):
+#    if split_base == -1:
+#        return __get_knn_faiss(xq, xb, k, distance)
+#    else:
+#        distances, indices = [], []
+#        bases = torch.chunk(xb, split_base)
 
-    xq_ptr = swig_ptr_from_FloatTensor(xq)
-    xb_ptr = swig_ptr_from_FloatTensor(xb)
+#        offset = 0
+#        for base in bases:
+#            D, I = __get_knn_faiss(xq, base, k, distance)
+#            I += offset
+#            offset += base.size(0)
 
-    nq, d1 = xq.size()
-    nb, d2 = xb.size()
-    assert d1 == d2
+#            distances.append(D)
+#            indices.append(I)
 
-    D = torch.empty(nq, k, device=xb.device, dtype=torch.float32)
-    I = torch.empty(nq, k, device=xb.device, dtype=torch.int64)
+#        distances = torch.cat(distances, dim=1)
+#        indices = torch.cat(indices, dim=1)
+#        n = distances.size(0)
 
-    D_ptr = swig_ptr_from_FloatTensor(D)
-    I_ptr = swig_ptr_from_LongTensor(I)
+#        # distances can be L2 distances or dot product
+#        factor = -1 if distance == 'dot_product' else 1
+#        distances *= factor
+#        order = distances.argsort(dim=1)[:, :k]
 
-    faiss.bruteForceKnn(
-        FAISS_RES, metric,
-        xb_ptr, nb,
-        xq_ptr, nq,
-        d1, k, D_ptr, I_ptr
-    )
+#        I = indices[torch.arange(n).view(-1, 1), order]
+#        D = distances[torch.arange(n).view(-1, 1), order]
+#        D *= factor
 
-    return D, I
+#        return D, I
+
+
+#def __get_knn_faiss(xq, xb, k, distance='dot_product'):
+#    """
+#    `metric` can be faiss.METRIC_INNER_PRODUCT or faiss.METRIC_L2
+#    https://github.com/facebookresearch/faiss/blob/master/gpu/test/test_pytorch_faiss.py
+#    """
+#    assert xb.device == xq.device
+#    assert distance in ['dot_product', 'l2']
+#    metric = faiss.METRIC_INNER_PRODUCT if distance == 'dot_product' else faiss.METRIC_L2
+
+#    xq_ptr = swig_ptr_from_FloatTensor(xq)
+#    xb_ptr = swig_ptr_from_FloatTensor(xb)
+
+#    nq, d1 = xq.size()
+#    nb, d2 = xb.size()
+#    assert d1 == d2
+
+#    D = torch.empty(nq, k, device=xb.device, dtype=torch.float32)
+#    I = torch.empty(nq, k, device=xb.device, dtype=torch.int64)
+
+#    D_ptr = swig_ptr_from_FloatTensor(D)
+#    I_ptr = swig_ptr_from_LongTensor(I)
+
+#    faiss.bruteForceKnn(
+#        FAISS_RES, metric,
+#        xb_ptr, nb,
+#        xq_ptr, nq,
+#        d1, k, D_ptr, I_ptr
+#    )
+
+#    return D, I
 
 
 def clip_parameters(model, clip):
@@ -513,6 +513,6 @@ def pad_tensor(tensor, n, pad_value=-1):
 
     return padded_tensor
 
-FAISS_RES = faiss.StandardGpuResources()
-FAISS_RES.setDefaultNullStreamAllDevices()
-FAISS_RES.setTempMemory(1200 * 1024 * 1024)
+#FAISS_RES = faiss.StandardGpuResources()
+#FAISS_RES.setDefaultNullStreamAllDevices()
+#FAISS_RES.setTempMemory(1200 * 1024 * 1024)

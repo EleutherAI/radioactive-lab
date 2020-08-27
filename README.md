@@ -7,7 +7,8 @@ It makes imperceptible changes to this dataset such that any model trained on it
 
 ## Install
 
-The install only requires Numpy and Pytorch >= 1.0
+The install only requires Numpy and Pytorch >= 1.0. UPDATE: And a whole bunch of other stuff.
+We have generated a requirements.txt for you to use after conda install pytorch.
 ```python
 conda install numpy
 # See http://pytorch.org for details
@@ -27,10 +28,13 @@ torch.save({
     "model": resnet18.state_dict(),
     "params": {
       "architecture": "resnet18",
+      "num_classes" : ????
     }
   }, "pretrained_resnet18.pth")
 
 ```
+
+This seems like extra work for nothing. We do the sampling here across both dimensions and it ends up just getting sliced out inside make_data_radioactive.py with final dimension as (1, dim) as expected??
 
 Then sample random (normalized) directions as carriers:
 ```python
@@ -54,7 +58,7 @@ python make_data_radioactive.py \
 --lambda_ft_l2 0.01 \
 --lambda_l2_img 0.0005 \
 --marking_network pretrained_resnet18.pth \
---dump-path /path/to/images \
+--dump_path /path/to/images \
 --optimizer sgd,lr=1.0
 ```
 
