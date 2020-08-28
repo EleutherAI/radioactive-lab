@@ -10,6 +10,7 @@ import argparse
 import json
 import numpy as np
 from os.path import basename, join
+import toml
 
 import sys
 
@@ -19,7 +20,6 @@ from src.datasets.folder import default_loader
 from src.model import build_model
 from src.utils import initialize_exp, bool_flag, get_optimizer, repeat_to
 
-import toml
 
 image_mean = torch.Tensor(NORMALIZE_IMAGENET.mean).view(-1, 1, 1)
 image_std = torch.Tensor(NORMALIZE_IMAGENET.std).view(-1, 1, 1)
@@ -93,190 +93,6 @@ def psnr(delta):
 
 #    return parser
 
-
-def main(params):
-    # Initialize experiment - starts logger and dumps experiment params
-    # We are passing "bypass" for the experiment so it doesn't do anything wierd facebooky stuff
-    logger = initialize_exp(params)
-
-    # CPU Seems to be fast enough to do an image every 15 seconds or so.
-    use_cuda = torch.cuda.is_available()
-    logger.info(f"CUDA Available? {use_cuda}")
-    device = torch.device("cuda" if use_cuda else "cpu")
-
-    if params.img_list is None:
-        params.img_paths = [s.strip() for s in params.img_paths.split(",")]
-    else:
-        # img_paths is used with dual functionality in this case to provide
-        # a start and end index range of the images to be loaded from the list file.        
-        assert ":" in params.img_paths
-        chunks = params.img_paths.split(":")
-        assert len(chunks) == 2
-        n_start, n_end = int(chunks[0]), int(chunks[1])
-
-        img_list = torch.load(params.img_list)
-        params.img_paths = [img_list[i] for i in range(n_start, n_end)]
-    logger.info(f"Image paths {params.img_paths}")
-
-    # Load Previously Created Pretrained network - see readme or notebook
-    logger.info(f"Loading network '{params.marking_network}' to device")
-    ckpt = torch.load(params.marking_network)
-    params.num_classes = ckpt["params"]["num_classes"]
-    params.architecture = ckpt['params']['architecture']
-    logger.info(f"Marking network architecture: {params.architecture}")
-    logger.info(f"Number of classes: {params.num_classes}")    
-    model = build_model(params)
-    model.to(device)
-    
-    # No idea why we're stripping "module", as our network has no module keys but could be something like this
-    # https://discuss.pytorch.org/t/solved-keyerror-unexpected-key-module-encoder-embedding-weight-in-state-dict/1686
-    model.load_state_dict({k.replace("module.", ""): v for k, v in ckpt['model'].items()}, strict=False)
-    model = model.eval()
-
-    # We remove the fully connected layer at the end as we don't need the classifier
-    model.fc = nn.Sequential()    
-
-    # Transforms our images (resize and crop to use with network)
-    # The loader ends up just performing: ToTensor, NORMALIZE_IMAGENET
-    # Need to ask Stella about whether the mean and std dev particularly matters, or in this case what our
-    # distribution is. Imagenet is fairly large so could be considered close enough to "all images in the universe"?
-    logger.info(f"Loading Images to Tensor and running NORMALIZE_IMAGENET")
-    loader = default_loader
-    transform = getImagenetTransform("none", img_size=params.img_size, crop_size=params.crop_size)
-    img_orig = [transform(loader(p)).unsqueeze(0) for p in params.img_paths]
-
-    # Loading carriers
-    # This seems like extra work for nothing. We do the sampling outside this program across both the hidden and class dimensions 
-    # and it ends up just getting sliced out with final dimension as (1, input_dim) as expected??
-    logger.info(f"Loading randomised carrier from '{params.carrier_path}' to device and slicing")
-    direction = torch.load(params.carrier_path).to(device)
-    assert direction.dim() == 2
-    direction = direction[params.carrier_id:params.carrier_id + 1]
-    logger.info(f"Carrier Shape: {direction.shape}")
-
-    # No idea what angle does - we don't appear to be using it
-    rho = -1
-    if params.angle is not None:
-        rho = 1 + np.tan(params.angle)**2
-
-    img = [x.clone() for x in img_orig]
-
-    # Load differentiable data augmentations
-    center_da = CenterCrop(params.img_size, params.crop_size)
-    random_da = RandomResizedCropFlip(params.crop_size)
-    if params.data_augmentation == "center":
-        data_augmentation = center_da
-    elif params.data_augmentation == "random":
-        logger.info(f"Chosen image augmentation for training: RandomResizedCropFlip")
-        data_augmentation = random_da
-
-    # Turn on backpropagation for the images to allow marking
-    logger.info(f"Enabling gradient on the images")
-    for i in range(len(img)):
-        img[i].requires_grad = True
-
-    optimizer, schedule = get_optimizer(img, params.optimizer)
-    if schedule is not None:
-        schedule = repeat_to(schedule, params.epochs)
-
-
-    # Center images and send to device
-    # Save original features for use in loss function
-    logger.info(f"Center Cropping Images and sending to device")
-    img_center = torch.cat([center_da(x, 0).to(device, non_blocking=True) for x in img_orig], dim=0)
-    # ft_orig = model(center_da(img_orig, 0).cuda(non_blocking=True)).detach()
-
-    logger.info(f"Running model on center cropped images to obtain original features")
-    ft_orig = model(img_center).detach()
-
-    if params.angle is not None:
-        ft_orig = torch.load("/checkpoint/asablayrolles/radioactive_data/imagenet_ckpt_2/features/valid_resnet18_center.pth").cuda()
-
-    logger.info(f"Commence training (marking image)")
-    for iteration in range(params.epochs):
-        if schedule is not None:
-            lr = schedule[iteration]
-            logger.info("New learning rate for %f" % lr)
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = lr
-
-        # Differentially augment images
-        logger.info("Augmenting images")
-        batch = []
-        for x in img:
-            aug_params = data_augmentation.sample_params(x)
-            aug_img = data_augmentation(x, aug_params)
-            batch.append(aug_img.to(device, non_blocking=True))
-        batch = torch.cat(batch, dim=0)
-
-        # Forward augmented images
-        ft = model(batch)
-
-        # Loss - See section 3.3 in the paper. 
-        if params.angle is None:
-            loss_ft = - torch.sum((ft - ft_orig) * direction) # First Term (Encourage u alignment)
-            loss_ft_l2 = params.lambda_ft_l2 * torch.norm(ft - ft_orig, dim=1).sum() # Third term (min feature diff)
-        else:
-            dot_product = torch.sum((ft - ft_orig) * direction)
-            logger.info("Dot product: {dot_product.item()}")
-            if params.half_cone:
-                loss_ft = - rho * dot_product * torch.abs(dot_product)
-            else:
-                loss_ft = - rho * (dot_product ** 2)
-            loss_ft_l2 = torch.norm(ft - ft_orig)**2
-
-        # Second term (Minimize image diff) - Uses full size images?!?!
-        loss_norm = 0
-        for i in range(len(img)):
-            loss_norm += params.lambda_l2_img * torch.norm(img[i].to(device, non_blocking=True) - 
-                                                           img_orig[i].to(device, non_blocking=True))**2
-        loss = loss_ft + loss_norm + loss_ft_l2
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        logs = {
-            "keyword": "iteration",
-            "loss": loss.item(),
-            "loss_ft": loss_ft.item(),
-            "loss_norm": loss_norm.item(),
-            "loss_ft_l2": loss_ft_l2.item(),
-        }
-        if params.angle is not None:
-            logs["R"] = - (loss_ft + loss_ft_l2).item()
-        if schedule is not None:
-            logs["lr"] = schedule[iteration]
-        logger.info("__log__:%s" % json.dumps(logs))
-
-        # ??????
-        for i in range(len(img)):
-            img[i].data[0] = project_linf(img[i].data[0], img_orig[i][0], params.radius)
-            if iteration % 10 == 0:
-                img[i].data[0] = roundPixel(img[i].data[0])
-
-    img_new = [numpyPixel(x.data[0]).astype(np.float32) for x in img]
-    img_old = [numpyPixel(x[0]).astype(np.float32) for x in img_orig]
-
-    img_totest = torch.cat([center_da(x, 0).to(device,non_blocking=True) for x in img])
-    with torch.no_grad():
-        ft_new = model(img_totest)
-
-    logger.info("__log__:%s" % json.dumps({
-        "keyword": "final",
-        "psnr": np.mean([psnr(x_new - x_old) for x_new, x_old in zip(img_new, img_old)]),
-        "ft_direction": torch.mv(ft_new - ft_orig, direction[0]).mean().item(),
-        "ft_norm": torch.norm(ft_new - ft_orig, dim=1).mean().item(),
-        "rho": rho,
-        "R": (rho * torch.dot(ft_new[0] - ft_orig[0], direction[0])**2 - torch.norm(ft_new - ft_orig)**2).item(),
-    }))
-
-    for i in range(len(img)):
-        img_name = basename(params.img_paths[i])
-
-        extension = ".%s" % (img_name.split(".")[-1])
-        np.save(join(params.dump_path, img_name).replace(extension, ".npy"), img_new[i].astype(np.uint8))
-
 # I hate programs with too many arguments
 class Params:
     def __init__(self):
@@ -296,11 +112,204 @@ class Params:
         self.angle = None # Angle (if cone)
         self.half_cone = True    
         self.img_list = None # File that contains list of all images (requires setting range in "img_paths")  
-        self.img_paths = "data/img/muss_loss.png" # Comma separted list of images to which apply adversarial pattern
+        self.img_paths = ":" # Comma separted list of images to which apply adversarial pattern (or list slicing for img_list)
         self.marking_network = "data/pretrained_resnet18.pth"    
+        self.batch_size = 50
         self.debug_train = False # Use valid sets for train sets (faster loading)    
         self.debug_slurm = False # Debug from a SLURM job    
         self.debug = False # Enable all debug flags
+
+
+def main(params):
+    # Initialize experiment - starts logger and dumps experiment params
+    # We are passing "bypass" for the experiment so it doesn't anything with clusters or job ids
+    logger = initialize_exp(params)
+
+    # CPU Seems to be fast enough to do an image every 15 seconds or so.
+    use_cuda = torch.cuda.is_available()
+    logger.info(f"CUDA Available? {use_cuda}")
+    device = torch.device("cuda" if use_cuda else "cpu")
+
+    if params.img_list is None:
+        params.img_paths = [s.strip() for s in params.img_paths.split(",")]
+    else:
+        # img_paths is used with dual functionality in this case to provide
+        # a start and end index range of the images to be loaded from the list file.        
+        img_list = torch.load(params.img_list)
+        assert ":" in params.img_paths
+        if params.img_paths == ":":
+            params.img_paths = img_list
+        else:
+            chunks = params.img_paths.split(":")
+            assert len(chunks) == 2
+            n_start, n_end = int(chunks[0]), int(chunks[1])
+
+            params.img_paths = [img_list[i] for i in range(n_start, n_end)]
+
+
+    logger.info(f"Image paths {params.img_paths}")
+
+    # Load Previously Created Pretrained network - see readme or notebook
+    logger.info(f"Loading network '{params.marking_network}' to device")
+    ckpt = torch.load(params.marking_network)
+    params.num_classes = ckpt["params"]["num_classes"]
+    params.architecture = ckpt['params']['architecture']
+    logger.info(f"Marking network architecture: {params.architecture}")
+    logger.info(f"Marking network original classes: {params.num_classes}")    
+    model = build_model(params)
+    model.to(device)
+    
+    # No idea why we're stripping "module", as our network has no module keys but could be something like this
+    # https://discuss.pytorch.org/t/solved-keyerror-unexpected-key-module-encoder-embedding-weight-in-state-dict/1686
+    model.load_state_dict({k.replace("module.", ""): v for k, v in ckpt['model'].items()}, strict=False)
+    model = model.eval()
+
+    # We remove the fully connected layer at the end as we don't need the classifier
+    logger.info("Removing fully connected layer from marking network.")
+    model.fc = nn.Sequential()    
+
+    # Transforms our images (resize and crop to use with network)
+    # This just ends up performing: ToTensor, NORMALIZE_IMAGENET
+    # Don't worry too much about the distribution of our particular data, just use imagenet mean and std
+    logger.info(f"Loading Images to Tensor and running NORMALIZE_IMAGENET")
+    loader = default_loader
+    transform = getImagenetTransform("none", img_size=params.img_size, crop_size=params.crop_size)
+    img_orig = [transform(loader(p)).unsqueeze(0) for p in params.img_paths]
+
+    # Loading carriers
+    # Multi-class training is currently NOT supported in the loop below, so we just slice out the relevant u vector
+    logger.info(f"Loading randomised carrier from '{params.carrier_path}' to device and slicing")
+    direction = torch.load(params.carrier_path).to(device)
+    assert direction.dim() == 2
+    direction = direction[params.carrier_id:params.carrier_id + 1]
+    logger.info(f"Carrier Shape: {direction.shape}")
+
+    # No idea what angle does - we don't appear to be using it
+    rho = -1
+    if params.angle is not None:
+        rho = 1 + np.tan(params.angle)**2
+
+    img = [x.clone() for x in img_orig]
+
+    # Load differentiable data augmentations, allowing propagation to original size image
+    center_da = CenterCrop(params.img_size, params.crop_size)
+    random_da = RandomResizedCropFlip(params.crop_size)
+    if params.data_augmentation == "center":
+        data_augmentation = center_da
+    elif params.data_augmentation == "random":
+        logger.info(f"Chosen image augmentation for training: RandomResizedCropFlip")
+        data_augmentation = random_da
+
+    # Turn on backpropagation for the images to allow marking
+    logger.info(f"Enabling gradient on the images")
+    for i in range(len(img)):
+        img[i].requires_grad = True
+
+    # Program blows up with too many images at once, break into batches
+    for i_batch in range(0, len(img), params.batch_size):
+        img_slice = img[i_batch:min(i_batch + params.batch_size, len(img))]
+        img_orig_slice = img_orig[i_batch:min(i_batch + params.batch_size, len(img_orig))]
+
+        optimizer, schedule = get_optimizer(img_slice, params.optimizer)
+        if schedule is not None:
+            schedule = repeat_to(schedule, params.epochs)
+
+        # Center images and send to device    
+        logger.info(f"Center Cropping Images and sending to device")
+        img_center = torch.cat([center_da(x, 0).to(device, non_blocking=True) for x in img_orig_slice], dim=0)
+        # ft_orig = model(center_da(img_orig, 0).cuda(non_blocking=True)).detach()
+
+        # Save original features for use in loss function
+        logger.info(f"Running model on center cropped images to obtain original features")
+        ft_orig = model(img_center).detach()
+
+        if params.angle is not None:
+            ft_orig = torch.load("/checkpoint/asablayrolles/radioactive_data/imagenet_ckpt_2/features/valid_resnet18_center.pth").cuda()
+
+        logger.info(f"Commence training (marking image)")
+        for iteration in range(params.epochs):
+            if schedule is not None:
+                lr = schedule[iteration]
+                logger.info("New learning rate for %f" % lr)
+                for param_group in optimizer.param_groups:
+                    param_group['lr'] = lr
+
+            # Differentially augment images
+            logger.info("Augmenting images")
+            batch = []
+            for x in img_slice:
+                aug_params = data_augmentation.sample_params(x)
+                aug_img = data_augmentation(x, aug_params)
+                batch.append(aug_img.to(device, non_blocking=True))
+            batch = torch.cat(batch, dim=0)
+
+            # Forward augmented images
+            ft = model(batch)
+
+            # Loss - See section 3.3 in the paper. 
+            if params.angle is None:
+                loss_ft = - torch.sum((ft - ft_orig) * direction) # First Term (Encourage u alignment)
+                loss_ft_l2 = params.lambda_ft_l2 * torch.norm(ft - ft_orig, dim=1).sum() # Third term (min feature diff)
+            else:
+                dot_product = torch.sum((ft - ft_orig) * direction)
+                logger.info("Dot product: {dot_product.item()}")
+                if params.half_cone:
+                    loss_ft = - rho * dot_product * torch.abs(dot_product)
+                else:
+                    loss_ft = - rho * (dot_product ** 2)
+                loss_ft_l2 = torch.norm(ft - ft_orig)**2
+
+            # Second term (Minimize image diff)
+            loss_norm = 0
+            for i in range(len(img_slice)):
+                loss_norm += params.lambda_l2_img * torch.norm(img_slice[i].to(device, non_blocking=True) - 
+                                                               img_orig_slice[i].to(device, non_blocking=True))**2
+            loss = loss_ft + loss_norm + loss_ft_l2
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            logs = {
+                "keyword": "iteration",
+                "loss": loss.item(),
+                "loss_ft": loss_ft.item(),
+                "loss_norm": loss_norm.item(),
+                "loss_ft_l2": loss_ft_l2.item(),
+            }
+            if params.angle is not None:
+                logs["R"] = - (loss_ft + loss_ft_l2).item()
+            if schedule is not None:
+                logs["lr"] = schedule[iteration]
+            logger.info("__log__:%s" % json.dumps(logs))
+
+            # ??????
+            for i in range(len(img_slice)):
+                img_slice[i].data[0] = project_linf(img_slice[i].data[0], img_orig_slice[i][0], params.radius)
+                if iteration % 10 == 0:
+                    img_slice[i].data[0] = roundPixel(img_slice[i].data[0])
+
+        img_new = [numpyPixel(x.data[0]).astype(np.float32) for x in img_slice]
+        img_old = [numpyPixel(x[0]).astype(np.float32) for x in img_orig_slice]
+
+        img_totest = torch.cat([center_da(x, 0).to(device,non_blocking=True) for x in img_slice])
+        with torch.no_grad():
+            ft_new = model(img_totest)
+
+        logger.info("__log__:%s" % json.dumps({
+            "keyword": "final",
+            "psnr": np.mean([psnr(x_new - x_old) for x_new, x_old in zip(img_new, img_old)]),
+            "ft_direction": torch.mv(ft_new - ft_orig, direction[0]).mean().item(),
+            "ft_norm": torch.norm(ft_new - ft_orig, dim=1).mean().item(),
+            "rho": rho,
+            "R": (rho * torch.dot(ft_new[0] - ft_orig[0], direction[0])**2 - torch.norm(ft_new - ft_orig)**2).item(),
+        }))
+
+        for i in range(i_batch, min(i_batch + params.batch_size, len(img))):
+            img_name = basename(params.img_paths[i])
+
+            extension = ".%s" % (img_name.split(".")[-1])
+            np.save(join(params.dump_path, img_name).replace(extension, ".npy"), img_new[i].astype(np.uint8))
 
 if __name__ == '__main__':
     ## generate parser / parse parameters
@@ -308,10 +317,10 @@ if __name__ == '__main__':
     #params = parser.parse_args()
 
     params = Params()
-    #with open("config.toml", "w") as fh:
+    #with open("config_make_radioactive.toml", "w") as fh:
     #    toml.dump(params.__dict__, fh)
 
-    with open("config.toml", "r") as fh:
+    with open("config_make_radioactive.toml", "r") as fh:
         loaded = toml.load(fh)
         for k, v in loaded.items():
             params.__dict__[k] = v

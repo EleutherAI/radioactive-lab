@@ -195,8 +195,7 @@ def initialize_exp(params):
     - dump parameters
     - create a logger
     """
-    # dump parameters (dump_path/params.pkl)
-    get_dump_path(params) # Does a lot more then just get the path....
+    get_dump_path(params) # Sets up directory for an experiment unless we pass "bypass"
     pickle.dump(params, open(os.path.join(params.dump_path, 'params.pkl'), 'wb'))
 
     # get running command

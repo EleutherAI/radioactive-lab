@@ -12,8 +12,10 @@ optimizer = "sgd,lr=1.0"
 carrier_path = "data/carriers.pth"
 carrier_id = 0
 half_cone = true
-img_paths = "data/img/muss_loss.png"
+img_list = "data/train_img_list.txt"
+img_paths = ":"
 marking_network = "data/pretrained_resnet18.pth"
 debug_train = false
 debug_slurm = false
 debug = false
+batch_size = 50

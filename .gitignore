@@ -6,3 +6,4 @@ data*
 .ipynb_checkpoints*
 radioactive_text.pyproj
 radioactive_text.sln
+test.py

@@ -45,13 +45,24 @@ from .data_augmentations import CenterCrop, RandomResizedCropFlip, Differentiabl
 #    }
 #}
 
+DATASETS = {
+    'cifar10': {
+        #'train': '/private/home/asablayrolles/data/radioactive/cifar10/',
+        #'valid': '/private/home/asablayrolles/data/radioactive/cifar10/vanilla_test',
+        ## 'test': '/private/home/asablayrolles/data/radioactive/cifar10/vanilla_test',
+        'num_classes': 10,
+        'img_size': 40,
+        'crop_size': 32,
+    }
+}
+
 #SUBCLASSES = {
 #    "imagenet": {
 #        n_cl: list(np.load("/private/home/asablayrolles/data/radioactive/imagenet_classes/%d.npy" % n_cl)) for n_cl in [10, 20, 50, 100, 200, 500]
 #    }
 #}
 
-def populate_dataset(params):
+def load_dataset_params(params):
     assert params.dataset in DATASETS
 
     if params.num_classes == -1:
@@ -165,14 +176,15 @@ def get_data_loader(params, split, transform, shuffle, distributed_sampler, wate
 
     # Data
     if params.dataset in ["cifar10", "mini_imagenet"]:
-        pass
-        # if split == "valid":
-        #     if data_path == "":
-        #         data = CIFAR10(root=DATASETS[params.dataset][split], transform=transform, return_index=return_index, overlay=overlay, blend_type=blend_type, alpha=alpha, overlay_class=overlay_class)
-        #     else:
-        #         data = CIFAR10(root=join(dirname(DATASETS[params.dataset][split]), data_path), transform=transform, return_index=return_index, overlay=overlay, blend_type=blend_type, alpha=alpha, overlay_class=overlay_class)
-        # else:
-        #     data = CIFAR10(root=join(DATASETS[params.dataset][split], data_path), transform=transform, return_index=return_index, overlay=overlay, blend_type=blend_type, alpha=alpha, overlay_class=overlay_class)
+        #pass
+         if split == "valid":
+             if data_path == "":
+                 data = CIFAR10(root=DATASETS[params.dataset][split], transform=transform, return_index=return_index, overlay=overlay, blend_type=blend_type, alpha=alpha, overlay_class=overlay_class)
+             else:
+                 data = CIFAR10(root=join(dirname(DATASETS[params.dataset][split]), data_path), transform=transform, return_index=return_index, overlay=overlay, blend_type=blend_type, alpha=alpha, overlay_class=overlay_class)
+         else:
+             data = CIFAR10(root=join(DATASETS[params.dataset][split], data_path), transform=transform, 
+             return_index=return_index, overlay=overlay, blend_type=blend_type, alpha=alpha, overlay_class=overlay_class)
     elif params.dataset in ["imagenet", "places205"]:
         vanilla_data = ImageFolder(root=DATASETS[params.dataset][split], transform=transform)
         if watermark_path != "":

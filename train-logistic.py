@@ -15,7 +15,7 @@ from src.model import check_model_params, EMBEDDING_SIZE
 from src.model import build_model
 from src.trainer import Trainer
 from src.evaluator import Evaluator
-from src.dataset import get_data_loader, populate_dataset
+from src.dataset import get_data_loader, load_dataset_params
 import warnings
 
 warnings.filterwarnings("ignore", "(Possibly )?corrupt EXIF data", UserWarning)
@@ -111,7 +111,7 @@ def main(params):
         init_signal_handler()
 
     # data loaders / samplers
-    populate_dataset(params)
+    load_dataset_params(params)
     train_data_loader, train_sampler, _ = get_data_loader(
         img_size=params.img_size,
         crop_size=params.crop_size,
