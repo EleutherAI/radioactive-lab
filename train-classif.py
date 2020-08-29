@@ -119,6 +119,8 @@ warnings.filterwarnings("ignore", "Metadata Warning, tag [0-9]+ had too many ent
 
 #    return parser
 
+logger = None
+
 class Params():
     def __init__(self):
         # main parameters
@@ -175,6 +177,7 @@ class Params():
         self.debug = True # Enable all debug flags
 
         # multi-gpu / multi-node
+        self.multi_training = False
         self.local_rank = -1
         self.master_port = -1
         self.use_cpu = False
@@ -183,11 +186,17 @@ class Params():
         # utils.py init_distributed_mode(params)
         # 
 
-def main(params):
-    
+def getDevice(params):
     device = None
-    if params.use_cpu:
-        device = torch.device("cpu")
+    if not params.multi_training:
+        if params.use_cpu:
+            logger.info("use_cpu is True, training on CPU")
+            device = torch.device("cpu")
+        else:
+            use_cuda = torch.cuda.is_available()
+            logger.info(f"CUDA Available? {use_cuda}")
+            device = torch.device("cuda" if use_cuda else "cpu")        
+
         # bunch of stuff set inside init_distributed_mode that breaks other files if not set
         params.is_master = True
         params.multi_gpu = False 
@@ -195,13 +204,19 @@ def main(params):
         params.global_rank = 0
     else:
         # initialize the Slurm / CPU / multi-GPU / Single GPU setup
-        init_distributed_mode(params)
+        # Currently unimplemented
+        device = init_distributed_mode(params)
+
+    return(device)
+
+def main(params):    
 
     # initialize the experiment
+    global logger
     logger = initialize_exp(params)
-    # Not sure if initialize_exp and init_distributed_mode order can be reversed safely...
-    if params.use_cpu:
-        logger.info("Using CPU Only")
+
+    # Select training hardware
+    device = getDevice(params)
 
     # Seed
     torch.manual_seed(params.seed)
