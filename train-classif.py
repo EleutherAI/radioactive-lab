@@ -131,15 +131,16 @@ class Params():
 
         # dataset
         self.dataset = "cifar10"
+        self.vanilla_dataset_root = "data/datasets"
         self.num_classes = -1
 
         # model type
-        self.architecture = "myresnet2"
-        self.non_linearity = "reul"
+        self.architecture = "resnet18"
+        self.non_linearity = "relu"
         self.pretrained = False
         self.from_ckpt = ""
         self.load_linear = False
-        self.train_path = "vanilla_train"
+        self.train_path = "data/radioactive_data.pth"
 
         # parser.add_argument("--zero_init_residual", type=bool_flag, default=False,
         #                     help="Resnet parameter")
@@ -183,17 +184,24 @@ class Params():
         # 
 
 def main(params):
-
+    
+    device = None
     if params.use_cpu:
-        logger.info("Using CPU Only")
-        torch.device("cpu")
-        params.multi_gpu = False # would be set in else otherwise
+        device = torch.device("cpu")
+        # bunch of stuff set inside init_distributed_mode that breaks other files if not set
+        params.is_master = True
+        params.multi_gpu = False 
+        params.is_slurm_job = False
+        params.global_rank = 0
     else:
         # initialize the Slurm / CPU / multi-GPU / Single GPU setup
         init_distributed_mode(params)
 
-    # initialize the experiment / load data
+    # initialize the experiment
     logger = initialize_exp(params)
+    # Not sure if initialize_exp and init_distributed_mode order can be reversed safely...
+    if params.use_cpu:
+        logger.info("Using CPU Only")
 
     # Seed
     torch.manual_seed(params.seed)
@@ -231,7 +239,7 @@ def main(params):
     # build model / cuda
     logger.info("Building %s model ..." % params.architecture)
     model = build_model(params)
-    model.cuda()
+    model.to(device)
 
     if params.from_ckpt != "":
         ckpt = torch.load(params.from_ckpt)
@@ -260,9 +268,9 @@ def main(params):
 
 
     # build trainer / reload potential checkpoints / build evaluator
-    trainer = Trainer(model=model, params=params)
+    trainer = Trainer(model=model, params=params, device=device)
     trainer.reload_checkpoint()
-    evaluator = Evaluator(trainer, params)
+    evaluator = Evaluator(trainer, params, device=device)
 
     # evaluation
     if params.eval_only:
@@ -317,15 +325,13 @@ if __name__ == '__main__':
     #params = parser.parse_args()
 
     params = Params()
-    with open("config_train_classif.toml", "w") as fh:
-        toml.dump(params.__dict__, fh)
+    #with open("config_train_classif.toml", "w") as fh:
+    #    toml.dump(params.__dict__, fh)
 
-    sys.exit(0)
-
-    #with open("config_train_classif.toml", "r") as fh:
-    #    loaded = toml.load(fh)
-    #    for k, v in loaded.items():
-    #        params.__dict__[k] = v
+    with open("config_train_classif.toml", "r") as fh:
+        loaded = toml.load(fh)
+        for k, v in loaded.items():
+            params.__dict__[k] = v
 
     # debug mode
     if params.debug is True:

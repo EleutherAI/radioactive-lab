@@ -20,7 +20,7 @@ logger = getLogger()
 
 class Trainer(object):
 
-    def __init__(self, model, params, ftmodel=None, teacher_model=None):
+    def __init__(self, model, params, ftmodel=None, teacher_model=None, device=None):
         """
         Initialize trainer.
         """
@@ -30,6 +30,8 @@ class Trainer(object):
         self.teacher_model = teacher_model
         self.params = params
         assert params.fp16 is False
+        assert device is not None
+        self.device = device
 
         # set parameters
         self.set_parameters()
@@ -211,7 +213,8 @@ class Trainer(object):
         if not os.path.isfile(checkpoint_path):
             return
         logger.warning('Reloading checkpoint from %s ...' % checkpoint_path)
-        data = torch.load(checkpoint_path, map_location=lambda storage, loc: storage.cuda(self.params.local_rank))
+        #data = torch.load(checkpoint_path, map_location=lambda storage, loc: storage.cuda(self.params.local_rank))
+        data = torch.load(checkpoint_path, map_location=device)
 
         # reload model parameters
         if self.params.multi_gpu:
@@ -313,7 +316,7 @@ class Trainer(object):
         self.model.train()
 
         # batch
-        images = images.cuda(non_blocking=True).half() if params.fp16 else images.cuda(non_blocking=True)
+        images = images.to(self.device, non_blocking=True).half() if params.fp16 else images.to(self.device,non_blocking=True)
         if self.ftmodel is not None:
             with torch.no_grad():
                 images = self.ftmodel(images)
@@ -321,7 +324,7 @@ class Trainer(object):
         # forward / loss / optimize
         output = self.model(images)
 
-        loss = F.cross_entropy(output, targets.cuda(non_blocking=True), reduction='mean')
+        loss = F.cross_entropy(output, targets.to(self.device, non_blocking=True), reduction='mean')
         self.optimize(loss)
 
         # statistics
@@ -339,7 +342,7 @@ class Trainer(object):
         self.model.train()
 
         # batch
-        images = images.cuda(non_blocking=True).half() if params.fp16 else images.cuda(non_blocking=True)
+        images = images.to(self.device, non_blocking=True).half() if params.fp16 else images.to(self.device,non_blocking=True)
 
         teacher_prelogits = self.teacher_model(images)
         targets = F.softmax(teacher_prelogits / params.temperature, dim=1)
