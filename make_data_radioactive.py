@@ -15,36 +15,32 @@ import toml
 import sys
 
 from src.data_augmentations import RandomResizedCropFlip, CenterCrop
-from src.dataset import getImagenetTransform, NORMALIZE_IMAGENET
+from src.dataset import getImagenetTransform, NORMALIZE_IMAGENET, NORMALIZE_CIFAR
 from src.datasets.folder import default_loader
 from src.model import build_model
 from src.utils import initialize_exp, bool_flag, get_optimizer, repeat_to
-
-
-image_mean = torch.Tensor(NORMALIZE_IMAGENET.mean).view(-1, 1, 1)
-image_std = torch.Tensor(NORMALIZE_IMAGENET.std).view(-1, 1, 1)
 
 def numpyTranspose(x):
     return np.transpose(x.numpy(), (1, 2, 0))
 
 
-def numpyPixel(x):
-    pixel_image = torch.clamp(255 * ((x * image_std) + image_mean), 0, 255)
+def numpyPixel(x, mean, std):
+    pixel_image = torch.clamp(255 * ((x * std) + mean), 0, 255)
     return np.transpose(pixel_image.numpy().astype(np.uint8), (1, 2, 0))
 
 
-def roundPixel(x):
-    x_pixel = 255 * ((x * image_std) + image_mean)
+def roundPixel(x, mean, std):
+    x_pixel = 255 * ((x * std) + mean)
     y = torch.round(x_pixel).clamp(0, 255)
-    y = ((y / 255.0) - image_mean) / image_std
+    y = ((y / 255.0) - mean) / std
     return y
 
 
-def project_linf(x, y, radius):
+def project_linf(x, y, radius, std):
     delta = x - y
-    delta = 255 * (delta * image_std)
+    delta = 255 * (delta * std)
     delta = torch.clamp(delta, -radius, radius)
-    delta = (delta / 255.0) / image_std
+    delta = (delta / 255.0) / std
     return y + delta
 
 
@@ -93,7 +89,6 @@ def psnr(delta):
 
 #    return parser
 
-# I hate programs with too many arguments
 class Params:
     def __init__(self):
         self.dump_path = "data/dump"
@@ -101,6 +96,7 @@ class Params:
         self.exp_id = "" # ignored if exp_name is "bypass"
         self.img_size = 256
         self.crop_size = 224    
+        self.data_distribution = "imagenet"
         self.data_augmentation = "random" # center or random
         self.radius = 10
         self.epochs = 90
@@ -119,13 +115,30 @@ class Params:
         self.debug_slurm = False # Debug from a SLURM job    
         self.debug = False # Enable all debug flags
 
+def getDataDisribution(dataset_name):
+    normalizer = None
+    if dataset_name == "imagenet":
+        normalizer = NORMALIZE_IMAGENET
+    elif dataset_name == "cifar":
+        normalizer = NORMALIZE_CIFAR
+    else:
+        raise ValueError(f'Distribution for {dataset_name} not available')
+
+    image_mean = torch.Tensor(normalizer.mean).view(-1, 1, 1)
+    image_std = torch.Tensor(normalizer.std).view(-1, 1, 1)
+
+    return (image_mean, image_std)
 
 def main(params):
+
+    # Get data distribution - custom not supported yet
+    mean, std = getDataDisribution(params.data_distribution)
+
     # Initialize experiment - starts logger and dumps experiment params
     # We are passing "bypass" for the experiment so it doesn't anything with clusters or job ids
     logger = initialize_exp(params)
 
-    # CPU Seems to be fast enough to do an image every 15 seconds or so.
+    # CPU Seems to be fast enough to do an image every 15 seconds or so. Gaming GPU about 1 second.
     use_cuda = torch.cuda.is_available()
     logger.info(f"CUDA Available? {use_cuda}")
     device = torch.device("cuda" if use_cuda else "cpu")
@@ -168,12 +181,12 @@ def main(params):
     logger.info("Removing fully connected layer from marking network.")
     model.fc = nn.Sequential()    
 
-    # Transforms our images (resize and crop to use with network)
-    # This just ends up performing: ToTensor, NORMALIZE_IMAGENET
-    # Don't worry too much about the distribution of our particular data, just use imagenet mean and std
-    logger.info(f"Loading Images to Tensor and running NORMALIZE_IMAGENET")
+    # Load Images
+    # This just ends up performing: ToTensor, NORMALIZE_CIFAR 
+    # Resizing and cropping is ignored without passing transform (we upscale further down)
+    logger.info(f"Loading Images to Tensor and running NORMALIZE_CIFAR")
     loader = default_loader
-    transform = getImagenetTransform("none", img_size=params.img_size, crop_size=params.crop_size)
+    transform = getImagenetTransform("none", img_size=params.img_size, crop_size=params.crop_size, normalization=NORMALIZE_CIFAR)
     img_orig = [transform(loader(p)).unsqueeze(0) for p in params.img_paths]
 
     # Loading carriers
@@ -207,8 +220,9 @@ def main(params):
 
     # Program blows up with too many images at once, break into batches
     for i_batch in range(0, len(img), params.batch_size):
-        img_slice = img[i_batch:min(i_batch + params.batch_size, len(img))]
-        img_orig_slice = img_orig[i_batch:min(i_batch + params.batch_size, len(img_orig))]
+        i_batch_end = min(i_batch + params.batch_size, len(img))
+        img_slice = img[i_batch:i_batch_end]
+        img_orig_slice = img_orig[i_batch:i_batch_end]
 
         optimizer, schedule = get_optimizer(img_slice, params.optimizer)
         if schedule is not None:
@@ -285,12 +299,12 @@ def main(params):
 
             # ??????
             for i in range(len(img_slice)):
-                img_slice[i].data[0] = project_linf(img_slice[i].data[0], img_orig_slice[i][0], params.radius)
+                img_slice[i].data[0] = project_linf(img_slice[i].data[0], img_orig_slice[i][0], params.radius, std)
                 if iteration % 10 == 0:
-                    img_slice[i].data[0] = roundPixel(img_slice[i].data[0])
+                    img_slice[i].data[0] = roundPixel(img_slice[i].data[0], mean, std)
 
-        img_new = [numpyPixel(x.data[0]).astype(np.float32) for x in img_slice]
-        img_old = [numpyPixel(x[0]).astype(np.float32) for x in img_orig_slice]
+        img_new = [numpyPixel(x.data[0], mean, std).astype(np.float32) for x in img_slice]
+        img_old = [numpyPixel(x[0], mean, std).astype(np.float32) for x in img_orig_slice]
 
         img_totest = torch.cat([center_da(x, 0).to(device,non_blocking=True) for x in img_slice])
         with torch.no_grad():
@@ -305,11 +319,12 @@ def main(params):
             "R": (rho * torch.dot(ft_new[0] - ft_orig[0], direction[0])**2 - torch.norm(ft_new - ft_orig)**2).item(),
         }))
 
-        for i in range(i_batch, min(i_batch + params.batch_size, len(img))):
-            img_name = basename(params.img_paths[i])
+        for i, img_to_save in enumerate(img_new):
+            original_index = i_batch + i
+            img_name = basename(params.img_paths[original_index])
 
             extension = ".%s" % (img_name.split(".")[-1])
-            np.save(join(params.dump_path, img_name).replace(extension, ".npy"), img_new[i].astype(np.uint8))
+            np.save(join(params.dump_path, img_name).replace(extension, ".npy"), img_to_save.astype(np.uint8))
 
 if __name__ == '__main__':
     ## generate parser / parse parameters

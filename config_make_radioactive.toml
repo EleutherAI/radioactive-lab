@@ -3,6 +3,7 @@ exp_name = "bypass"
 exp_id = ""
 img_size = 256
 crop_size = 224
+data_distribution = "cifar"
 data_augmentation = "random"
 radius = 10
 epochs = 90

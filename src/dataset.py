@@ -75,7 +75,6 @@ def load_dataset_params(params):
 NORMALIZE_IMAGENET = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 NORMALIZE_CIFAR = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010])
 
-
 def getCifarTransform(name, img_size=40, crop_size=32, as_list=False, normalization=True):
     assert name in ["center", "flip", "random"]
 
