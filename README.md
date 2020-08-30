@@ -1,13 +1,9 @@
 # Radioactive data
 
-This is the open source implementation of the paper ["Radioactive data: tracing through training"](https://arxiv.org/abs/2002.00937).
-
-Radioactive data can be used to detect whether a particular image dataset has been used to train a model. 
-It makes imperceptible changes to this dataset such that any model trained on it will bear an identifiable mark. The mark is robust to strong variations such as different network architectures or optimization methods. Given a trained model, our technique detects the use of radioactive data and provides a level of confidence (p-value). 
+This is EleutherAI's reimplementation of the paper ["Radioactive data: tracing through training"](https://arxiv.org/abs/2002.00937). Their GitHub repo can be found [here](https://github.com/facebookresearch/radioactive_data). **Warning:** the official open source implementation has some bugs, as well as miscilenaous issues like hard-coded paths that will prevent you from running it.
 
 ## Install
 
-The install only requires Numpy and Pytorch >= 1.0. UPDATE: And a whole bunch of other stuff.
 We have generated a requirements.txt for you to use after conda install pytorch.
 ```python
 conda install numpy
@@ -104,21 +100,7 @@ python detect_radioactivity.py \
 --tested_network checkpoint-0.pth
 ```
 
-On the output, you should obtain a line with "log10(p)=...", which gives the (log of the) p-value of radioactivity detection. 
-
-## Citation
-
-If you use this code, please cite the paper
-
-```
-@article{sablayrolles2020radioactive,
-  title={Radioactive data: tracing through training},
-  author={Sablayrolles, Alexandre and Douze, Matthijs and Schmid, Cordelia and J{\'e}gou, Herv{\'e}},
-  journal={arXiv preprint arXiv:2002.00937},
-  year={2020}
-}
-```
-
+On the output, you should obtain a line with "log10(p)=...", which gives the (log of the) p-value of radioactivity detection.
 
 ## License
 
