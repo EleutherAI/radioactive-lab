@@ -7,3 +7,4 @@ data*
 radioactive_text.pyproj
 radioactive_text.sln
 test.py
+multi_gpu_test.py

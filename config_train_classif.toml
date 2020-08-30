@@ -1,4 +1,4 @@
-dump_path = "data/dump"
+dump_path = "data/dump" # Location of target model checkpoint & log
 exp_name = "bypass"
 save_periodic = 0
 exp_id = ""
@@ -6,7 +6,7 @@ nb_workers = 10
 fp16 = false
 dataset = "cifar10"
 vanilla_dataset_root = "data/datasets" # Where to download/load base CIFAR10 from
-num_classes = -1
+num_classes = -1 # Program will default to num_classes in dataset if we pass -1
 architecture = "resnet18"
 non_linearity = "relu"
 pretrained = false

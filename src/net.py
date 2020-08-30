@@ -8,7 +8,11 @@
 import time
 import torch
 
-def extractFeatures(loader, model, ignore_first=False, numpy=False, verbose=True):
+# Less complicated then it looks. Just loops through all images in the dataset
+# running them through the model in batches. They are saved in an array of dimension
+# (num_images, final_layer_neurons). Offset stuff just handles copying each batch into the
+# right place. Targets are saved in a similar shaped array using the same process.
+def extractFeatures(loader, model, device, ignore_first=False, numpy=False, verbose=True):
     assert not model.training
     with torch.no_grad():
         n = len(loader.dataset)
@@ -22,7 +26,7 @@ def extractFeatures(loader, model, ignore_first=False, numpy=False, verbose=True
                 elements = elements[1:]
 
             img = elements[0]
-            ft = model(img.cuda(non_blocking=True))
+            ft = model(img.to(device, non_blocking=True))
             sz = img.size(0)
 
             if features is None:

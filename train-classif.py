@@ -252,8 +252,9 @@ def main(params):
     )
 
     # build model / cuda
-    logger.info("Building %s model ..." % params.architecture)
-    model = build_model(params)
+    print(f"Target network architecture: {params.architecture}")
+    print(f"Target network classes: {params.num_classes}")   
+    model = build_model(params.architecture, params.num_classes)
     model.to(device)
 
     if params.from_ckpt != "":

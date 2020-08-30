@@ -22,9 +22,9 @@ def check_model_params(params):
         params.from_ckpt = ""
 
 
-def build_model(params):
-    if params.architecture in models.__dict__ and callable(models.__dict__[params.architecture]):
-        model = models.__dict__[params.architecture](num_classes=params.num_classes)
+def build_model(architecture, num_classes):
+    if architecture in models.__dict__ and callable(models.__dict__[architecture]):
+        model = models.__dict__[architecture](num_classes=num_classes)
     else:
         assert False, "Architecture not recognized"
 

@@ -119,7 +119,7 @@ def getDataDisribution(dataset_name):
     normalizer = None
     if dataset_name == "imagenet":
         normalizer = NORMALIZE_IMAGENET
-    elif dataset_name == "cifar":
+    elif dataset_name == "cifar10":
         normalizer = NORMALIZE_CIFAR
     else:
         raise ValueError(f'Distribution for {dataset_name} not available')
@@ -163,14 +163,13 @@ def main(params):
     logger.info(f"Image paths {params.img_paths}")
 
     # Load Previously Created Pretrained network - see readme or notebook
-    logger.info(f"Loading network '{params.marking_network}' to device")
+    logger.info(f"Loading network '{params.marking_network}'")
     ckpt = torch.load(params.marking_network)
-    params.num_classes = ckpt["params"]["num_classes"]
-    params.architecture = ckpt['params']['architecture']
-    logger.info(f"Marking network architecture: {params.architecture}")
-    logger.info(f"Marking network original classes: {params.num_classes}")    
-    model = build_model(params)
-    model.to(device)
+    marking_arch = ckpt['params']['architecture']
+    marking_classes = ckpt["params"]["num_classes"]
+    logger.info(f"Marking network architecture: {marking_arch}")
+    logger.info(f"Marking network original classes: {marking_classes}")    
+    model = build_model(marking_arch, marking_classes).to(device)
     
     # No idea why we're stripping "module", as our network has no module keys but could be something like this
     # https://discuss.pytorch.org/t/solved-keyerror-unexpected-key-module-encoder-embedding-weight-in-state-dict/1686
