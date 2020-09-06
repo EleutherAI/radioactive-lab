@@ -22,21 +22,22 @@ import yaml
 import torch
 import numpy as np
 
-logger = getLogger()
+# Comment out broken hardcoded paths - may need to fix later
+#logger = getLogger()
 
-CACHE_DATASET = {
-    '/datasets01_101/imagenet_full_size/061417/train': '/checkpoint/asablayrolles/imagenet_train.pkl',
-    '/datasets01_101/imagenet_full_size/061417/val': '/checkpoint/asablayrolles/imagenet_val.pkl',
-    '/datasets01_101/places205/121517/pytorch/train': '/checkpoint/asablayrolles/places205_train.pkl',
-    '/datasets01_101/places205/121517/pytorch/val': '/checkpoint/asablayrolles/places205_val.pkl',
-    '/private/home/asablayrolles/data/CUB_200_2011/train': '/checkpoint/asablayrolles/cub_train.pkl',
-    '/private/home/asablayrolles/data/CUB_200_2011/val': '/checkpoint/asablayrolles/cub_val.pkl',
-    '/private/home/rvj/data/google-landmark-2019/images/train': '/checkpoint/guismay/google-landmark-2019_images_train.pkl',
-    '/private/home/rvj/data/google-landmark-2019/images/valid': '/checkpoint/guismay/google-landmark-2019_images_valid.pkl',
-    '/private/home/rvj/data/google-landmark-2019/images/test': '/checkpoint/guismay/google-landmark-2019_images_test.pkl',
-    '/private/home/rvj/data/google-landmark-2018/test': '/checkpoint/asablayrolles/google-landmark-2019_images_test_2018.pkl',
-    "/private/home/hoss/data/google_landmarks_recognition_2019_test_final": "/checkpoint/asablayrolles/google-landmark-2019_images_test_final.pkl"
-}
+#CACHE_DATASET = {
+#    '/datasets01_101/imagenet_full_size/061417/train': '/checkpoint/asablayrolles/imagenet_train.pkl',
+#    '/datasets01_101/imagenet_full_size/061417/val': '/checkpoint/asablayrolles/imagenet_val.pkl',
+#    '/datasets01_101/places205/121517/pytorch/train': '/checkpoint/asablayrolles/places205_train.pkl',
+#    '/datasets01_101/places205/121517/pytorch/val': '/checkpoint/asablayrolles/places205_val.pkl',
+#    '/private/home/asablayrolles/data/CUB_200_2011/train': '/checkpoint/asablayrolles/cub_train.pkl',
+#    '/private/home/asablayrolles/data/CUB_200_2011/val': '/checkpoint/asablayrolles/cub_val.pkl',
+#    '/private/home/rvj/data/google-landmark-2019/images/train': '/checkpoint/guismay/google-landmark-2019_images_train.pkl',
+#    '/private/home/rvj/data/google-landmark-2019/images/valid': '/checkpoint/guismay/google-landmark-2019_images_valid.pkl',
+#    '/private/home/rvj/data/google-landmark-2019/images/test': '/checkpoint/guismay/google-landmark-2019_images_test.pkl',
+#    '/private/home/rvj/data/google-landmark-2018/test': '/checkpoint/asablayrolles/google-landmark-2019_images_test_2018.pkl',
+#    "/private/home/hoss/data/google_landmarks_recognition_2019_test_final": "/checkpoint/asablayrolles/google-landmark-2019_images_test_final.pkl"
+#}
 
 
 def has_file_allowed_extension(filename, extensions):

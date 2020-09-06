@@ -7,6 +7,7 @@
 from logging import getLogger
 import torch
 from torchvision import transforms
+import torchvision
 from torch.utils.data import Subset
 import numpy as np
 
@@ -16,40 +17,53 @@ from .datasets.sampler import DistributedSampler, SeededDistributedSampler
 from .datasets.watermarked_folder import WatermarkedSet
 from .data_augmentations import CenterCrop, RandomResizedCropFlip, DifferentiableDataAugmentation
 
-logger = getLogger()
+#logger = getLogger()
+
+# Comment out broken hardcoded paths - may need to fix later
+
+#DATASETS = {
+#    'cifar10': {
+#        'train': '/private/home/asablayrolles/data/radioactive/cifar10/',
+#        'valid': '/private/home/asablayrolles/data/radioactive/cifar10/vanilla_test',
+#        # 'test': '/private/home/asablayrolles/data/radioactive/cifar10/vanilla_test',
+#        'num_classes': 10,
+#        'img_size': 40,
+#        'crop_size': 32,
+#    },
+#    'imagenet': {
+#        'train': '/datasets01_101/imagenet_full_size/061417/train',
+#        'valid': '/datasets01_101/imagenet_full_size/061417/val',
+#        'num_classes': 1000,
+#        'img_size': 256,
+#        'crop_size': 224,
+#    },
+#    'places205': {
+#        'train': '/datasets01_101/places205/121517/pytorch/train',
+#        'valid': '/datasets01_101/places205/121517/pytorch/val',
+#        'num_classes': 205,
+#        'img_size': 256,
+#        'crop_size': 224,
+#    }
+#}
 
 DATASETS = {
     'cifar10': {
-        'train': '/private/home/asablayrolles/data/radioactive/cifar10/',
-        'valid': '/private/home/asablayrolles/data/radioactive/cifar10/vanilla_test',
-        # 'test': '/private/home/asablayrolles/data/radioactive/cifar10/vanilla_test',
+        #'train': '/private/home/asablayrolles/data/radioactive/cifar10/',
+        #'valid': '/private/home/asablayrolles/data/radioactive/cifar10/vanilla_test',
+        ## 'test': '/private/home/asablayrolles/data/radioactive/cifar10/vanilla_test',
         'num_classes': 10,
         'img_size': 40,
         'crop_size': 32,
-    },
-    'imagenet': {
-        'train': '/datasets01_101/imagenet_full_size/061417/train',
-        'valid': '/datasets01_101/imagenet_full_size/061417/val',
-        'num_classes': 1000,
-        'img_size': 256,
-        'crop_size': 224,
-    },
-    'places205': {
-        'train': '/datasets01_101/places205/121517/pytorch/train',
-        'valid': '/datasets01_101/places205/121517/pytorch/val',
-        'num_classes': 205,
-        'img_size': 256,
-        'crop_size': 224,
     }
 }
 
-SUBCLASSES = {
-    "imagenet": {
-        n_cl: list(np.load("/private/home/asablayrolles/data/radioactive/imagenet_classes/%d.npy" % n_cl)) for n_cl in [10, 20, 50, 100, 200, 500]
-    }
-}
+#SUBCLASSES = {
+#    "imagenet": {
+#        n_cl: list(np.load("/private/home/asablayrolles/data/radioactive/imagenet_classes/%d.npy" % n_cl)) for n_cl in [10, 20, 50, 100, 200, 500]
+#    }
+#}
 
-def populate_dataset(params):
+def load_dataset_params(params):
     assert params.dataset in DATASETS
 
     if params.num_classes == -1:
@@ -60,7 +74,6 @@ def populate_dataset(params):
 
 NORMALIZE_IMAGENET = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 NORMALIZE_CIFAR = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010])
-
 
 def getCifarTransform(name, img_size=40, crop_size=32, as_list=False, normalization=True):
     assert name in ["center", "flip", "random"]
@@ -91,7 +104,7 @@ def getCifarTransform(name, img_size=40, crop_size=32, as_list=False, normalizat
         return transforms.Compose(transform)
 
 
-def getImagenetTransform(name, img_size=256, crop_size=224, normalization=True, as_list=False, differentiable=False):
+def getImagenetTransform(name, img_size=256, crop_size=224, normalization=None, as_list=False, differentiable=False):
     transform = []
     if differentiable:
         if name == "random":
@@ -129,11 +142,11 @@ def getImagenetTransform(name, img_size=256, crop_size=224, normalization=True, 
             transforms.ToTensor()
         ]
 
-    if normalization:
+    if normalization is not None:
         if name == "tencrop":
-            postprocess.append(transforms.Lambda(lambda crops: torch.stack([NORMALIZE_IMAGENET(crop) for crop in crops])))
+            postprocess.append(transforms.Lambda(lambda crops: torch.stack([normalization(crop) for crop in crops])))
         else:
-            postprocess.append(NORMALIZE_IMAGENET)
+            postprocess.append(normalization)
 
     if as_list:
         return transform + postprocess
@@ -157,20 +170,21 @@ def get_data_loader(params, split, transform, shuffle, distributed_sampler, wate
 
     # Transform
     if params.dataset.startswith("cifar") or params.dataset == "tiny" or params.dataset == "mini_imagenet":
-        transform = getCifarTransform(transform, img_size=params.img_size, crop_size=params.crop_size, normalization=True)
+        #transform = getCifarTransform(transform, img_size=params.img_size, crop_size=params.crop_size, normalization=True)
+        transform = getImagenetTransform(transform, img_size=params.img_size, crop_size=params.crop_size, normalization=NORMALIZE_CIFAR)
     elif params.dataset in ["imagenet", "flickr", "cub", "places205"]:
-        transform = getImagenetTransform(transform, img_size=params.img_size, crop_size=params.crop_size, normalization=True)
+        transform = getImagenetTransform(transform, img_size=params.img_size, crop_size=params.crop_size, normalization=NORMALIZE_IMAGENET)
 
     # Data
-    if params.dataset in ["cifar10", "mini_imagenet"]:
-        pass
-        # if split == "valid":
-        #     if data_path == "":
-        #         data = CIFAR10(root=DATASETS[params.dataset][split], transform=transform, return_index=return_index, overlay=overlay, blend_type=blend_type, alpha=alpha, overlay_class=overlay_class)
-        #     else:
-        #         data = CIFAR10(root=join(dirname(DATASETS[params.dataset][split]), data_path), transform=transform, return_index=return_index, overlay=overlay, blend_type=blend_type, alpha=alpha, overlay_class=overlay_class)
-        # else:
-        #     data = CIFAR10(root=join(DATASETS[params.dataset][split], data_path), transform=transform, return_index=return_index, overlay=overlay, blend_type=blend_type, alpha=alpha, overlay_class=overlay_class)
+    if params.dataset.lower() == "cifar10":
+        if split == "valid":
+            data = torchvision.datasets.CIFAR10(root=params.vanilla_dataset_root, train=False, download=True, transform=transform)
+        else:
+            vanilla_data = torchvision.datasets.CIFAR10(root=params.vanilla_dataset_root, download=True, transform=transform)
+            if watermark_path != "":
+                data = WatermarkedSet(vanilla_data, watermark_path=watermark_path, transform=transform)
+            else:
+                data = vanilla_data
     elif params.dataset in ["imagenet", "places205"]:
         vanilla_data = ImageFolder(root=DATASETS[params.dataset][split], transform=transform)
         if watermark_path != "":

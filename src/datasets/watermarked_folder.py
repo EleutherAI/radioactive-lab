@@ -27,7 +27,7 @@ class WatermarkedSet(data.Dataset):
 
         num_marked = len(self.marked_content)
         per_marked = num_marked / len(vanilla_dataset)
-        print(f"There are {num_marked} watermarked examples in this dataset ({100 * per_marked:.2f}%)")
+        logger.info(f"There are {num_marked} watermarked examples in this dataset ({100 * per_marked:.2f}%)")
 
 
     def __getitem__(self, index):

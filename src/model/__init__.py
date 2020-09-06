@@ -22,13 +22,10 @@ def check_model_params(params):
         params.from_ckpt = ""
 
 
-def build_model(params):
-    vision_models = [name for name in dir(models) if name.islower() and not name.startswith("__") and callable(models.__dict__[name])]
-    if params.architecture in vision_models:
-        model = models.__dict__[params.architecture](num_classes=params.num_classes)
+def build_model(architecture, num_classes):
+    if architecture in models.__dict__ and callable(models.__dict__[architecture]):
+        model = models.__dict__[architecture](num_classes=num_classes)
     else:
         assert False, "Architecture not recognized"
-
-    logger.info("Model: {}".format(model))
 
     return model

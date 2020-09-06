@@ -1,0 +1,15 @@
+dataset = "cifar10"
+dataset_root = "data/datasets"
+
+# Image scaling pre feeding to networks
+# Will need extra params if we have different marking and target networks??
+crop_size = 224
+img_size = 256
+
+carrier_path = "data/carriers.pth"
+marking_network = "data/pretrained_resnet18.pth"
+target_network = "data/dump/checkpoint-0.pth"
+
+batch_size = 64
+nb_workers = 20
+seed = 1

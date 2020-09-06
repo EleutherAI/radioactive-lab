@@ -15,7 +15,7 @@ logger = getLogger()
 
 class Evaluator(object):
 
-    def __init__(self, trainer, params):
+    def __init__(self, trainer, params, device=None):
         """
         Initialize evaluator.
         """
@@ -23,6 +23,8 @@ class Evaluator(object):
         self.model = trainer.model
         self.ftmodel = trainer.ftmodel
         self.params = params
+        assert device is not None
+        self.device = device
 
     def run_all_evals(self, trainer, evals, data_loader, *args, **kwargs):
         """
@@ -55,7 +57,7 @@ class Evaluator(object):
         topk = [k for k in topk if k <= params.num_classes]
 
         for images, targets in data_loader:
-            images = images.cuda().half() if params.fp16 else images.cuda()
+            images = images.to(self.device).half() if params.fp16 else images.to(self.device)
             if self.ftmodel is not None:
                 images = self.ftmodel(images)
 
