@@ -2,7 +2,7 @@
 
 This is EleutherAI's reimplementation of the paper ["Radioactive data: tracing through training"](https://arxiv.org/abs/2002.00937). Their GitHub repo can be found [here](https://github.com/facebookresearch/radioactive_data). **Warning:** the official open source implementation has some bugs, as well as miscellaneous issues like hard-coded paths that will prevent you from running it. To run the code, use the installation instructions below and then open `notebook.ipynb`
 
-**Note:** @researcher2 is almost done with a full refactor so don't go getting too comfortable with the current. 
+**Note:** @researcher2 is almost done with a full refactor so don't go getting too comfortable with the current code. 
 
 # Original README
 
