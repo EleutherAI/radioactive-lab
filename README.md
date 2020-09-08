@@ -10,11 +10,18 @@ At some point this will be rewritten, but for now we are preserving the original
 
 ## Install
 
-We have generated a requirements.txt for you to use after conda install pytorch.
-```python
-conda install numpy
-# See http://pytorch.org for details
-conda install pytorch -c pytorch
+First setup pytorch. Example for GPU enabled using conda:
+
+```bash
+conda create --name radioactive_lab python=3.8
+conda activate radioactive_lab
+conda install pytorch torchvision cudatoolkit=10.2 -c pytorch
+```
+
+After that use pip to install other requirements:
+
+```bash
+pip install -r requirements.txt
 ```
 
 ## Creating radioactive data
