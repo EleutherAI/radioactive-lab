@@ -65,21 +65,20 @@ def psnr(delta):
     return 20 * np.log10(255) - 10 * np.log10(np.mean(delta**2))
 
 
-def main(experiment_directory, marking_network, images, original_indexes, carriers, class_id,
-         overwrite=False, batch_size=32, optimizer_fn=None, angle=None, half_cone=True, radius=10, lambda_1=0.0005, 
-         lambda_2=0.01, epochs=90):
+def main(output_directory, marking_network, images, original_indexes, carriers, class_id,
+         optimizer_fn, tensorboard_log_directory_base, batch_size=32, epochs=90, lambda_1=0.0005, lambda_2=0.01, 
+         angle=None, half_cone=True, radius=10, overwrite=False):
 
     # Ensure we don't overwrite previous marked images if not desired
-    output_directory = os.path.join(experiment_directory, "marked_images")
     if os.path.isdir(output_directory):
         if overwrite:
-            shutil.rmtree(output_directory, ignore_errors=True)
+            shutil.rmtree(output_directory)
         else:                
             raise FileExistsError(f"Image output directory {output_directory} already exists." \
                "Set overwrite=True if this is what you desire.")
 
     # Save the images in their respective class - We use torchvision.datasets.datasetfolder in training classifier
-    output_directory = os.path.join(experiment_directory, "marked_images", str(class_id))
+    output_directory = os.path.join(output_directory, str(class_id))
     os.makedirs(output_directory, exist_ok=True)
 
     # Reshape the mean and std for later use
@@ -98,7 +97,6 @@ def main(experiment_directory, marking_network, images, original_indexes, carrie
     marking_network.eval()   
 
     # Loading carriers - Here we slice the full carrier array to get the vector u for our class
-    # Multi-class training is currently NOT supported in the loop below, so we just slice out the relevant u vector
     logger.info(f"Slicing carrier for class id {class_id}")
     direction = carriers.to(device)
     assert direction.dim() == 2
@@ -146,7 +144,7 @@ def main(experiment_directory, marking_network, images, original_indexes, carrie
         #if params.angle is not None:
         #    ft_orig = torch.load("/checkpoint/asablayrolles/radioactive_data/imagenet_ckpt_2/features/valid_resnet18_center.pth").cuda()
 
-        tensorboard_log_directory = f"runs/radioactive_batch{batch_number}"
+        tensorboard_log_directory = f"{tensorboard_log_directory_base}_batch{batch_number}"
         tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)
 
         for iteration in range(epochs):
@@ -236,7 +234,7 @@ def main(experiment_directory, marking_network, images, original_indexes, carrie
     return images_for_tensorboard
 
 
-def get_images_for_marking(training_set, class_marking_percentage=10):
+def get_images_for_marking(training_set, tensorboard_log_directory, class_marking_percentage):
 
     # Index images by class
     images_by_class = [[] for x in training_set.classes]
@@ -251,8 +249,7 @@ def get_images_for_marking(training_set, class_marking_percentage=10):
     total_marked_in_class = int(len(images_by_class[chosen_image_class]) * (class_marking_percentage / 100))
     train_marked_indexes = random.sample(images_by_class[chosen_image_class], total_marked_in_class)
 
-    # Save to tensorboard for funs - never use pyplot for grids, so slow....
-    tensorboard_log_directory = "runs/radioactive"
+    # Save to tensorboard - never use pyplot for grids, so slow....
     tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)
     images = []
     for index in train_marked_indexes:
@@ -267,7 +264,7 @@ def get_images_for_marking(training_set, class_marking_percentage=10):
         image , _ = training_set[index]
         images_for_marking.append(transform(image).unsqueeze(0))
 
-    return images_for_marking, train_marked_indexes
+    return chosen_image_class, images_for_marking, train_marked_indexes
 
 
 if __name__ == '__main__':
@@ -281,14 +278,16 @@ if __name__ == '__main__':
     setup_logger(filepath=logfile_path)
 
     # Clear old tensorboard logs
-    our_tensorboard_logs = glob.glob('runs/radioactive*')
+    our_tensorboard_logs = glob.glob('runs/radioactive*') # main creates extra log dirs
     for tensorboard_log in our_tensorboard_logs:
-        shutil.rmtree(tensorboard_log, ignore_errors=True)
+        shutil.rmtree(tensorboard_log)
+    tensorboard_log_directory="runs/radioactive"
 
     # Load randomly sampled images from random class along with list of original indexes 
     training_set = torchvision.datasets.CIFAR10(root="experiments/datasets", download=True)
     class_marking_percentage = 10
-    images, original_indexes = get_images_for_marking(training_set, class_marking_percentage=class_marking_percentage)
+    class_id, images, original_indexes = get_images_for_marking(training_set, tensorboard_log_directory, 
+                                                                class_marking_percentage)
 
     # Marking network is a pretrained resnet18
     marking_network = torchvision.models.resnet18(pretrained=True)
@@ -297,7 +296,6 @@ if __name__ == '__main__':
     marking_network_fc_feature_size = 512
     carriers = torch.randn(len(training_set.classes), marking_network_fc_feature_size)
     carriers /= torch.norm(carriers, dim=1, keepdim=True)
-    class_id = 9
     torch.save(carriers, os.path.join(experiment_directory, "carriers.pth"))
 
     # Run!
@@ -305,11 +303,12 @@ if __name__ == '__main__':
     optimizer = lambda x : torch.optim.Adam(x, lr=0.1)
     epochs = 100
     batch_size = 32
-    marked_images = main(experiment_directory, marking_network, images, original_indexes, carriers, class_id, 
-                         overwrite=True, optimizer_fn=optimizer, epochs=epochs, batch_size=batch_size)
+    output_directory = os.path.join(experiment_directory, "marked_images")
+    marked_images = main(output_directory, marking_network, images, original_indexes, carriers, 
+                         class_id, optimizer, tensorboard_log_directory, epochs=epochs, 
+                         batch_size=batch_size, overwrite=True)
 
     # Show marked images in Tensorboard
-    tensorboard_log_directory = "runs/radioactive"
     tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)
     images_for_tensorboard = [transforms.ToTensor()(x) for x in marked_images]
     img_grid = torchvision.utils.make_grid(images_for_tensorboard, nrow=16)

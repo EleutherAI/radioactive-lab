@@ -27,11 +27,18 @@ def cosine_pvalue(c, d):
     """
     assert type(c) in [float, np.float64, np.float32]
 
-    a = (d - 1) / 2.
-    b = 1 / 2.
+    #something = 0.5 * betainc(1/2, 4, 0.3)
+    #print(something)
+
+    #a = (d - 1) / 2.
+    #b = 1 / 2.
+
+    b = (d - 1) / 2.
+    a = 1 / 2.
 
     if c >= 0:
-        return 0.5 * betainc(a, b, 1-c**2)
+        #return 0.5 * betainc(a, b, 1-c**2)
+        return 1 - betainc(a, b, c)
     else:
         return 1 - cosine_pvalue(-c, d=d)
 
@@ -72,7 +79,7 @@ def extract_features(loader, model, device, ignore_first=False, numpy=False, ver
             if offset % (100 * sz) == 0 and verbose:
                 speed = offset / (time.time() - start)
                 eta = (len(loader)*sz - offset) / speed
-                print(f"Speed: {speed}, ETA: {eta}")
+                logger.info(f"Speed: {speed}, ETA: {eta}")
 
             # if offset >= 20000 and n >= 1e6:
             #     for i in range(10):
@@ -106,21 +113,11 @@ def get_data_loader(batch_size, num_workers):
 
     return test_set_loader
 
-def main(batch_size=256, num_workers=1):
-
-    # Setup paths and logger
-    experiment_directory = "experiments/radioactive/"
-    output_directory = os.path.join(experiment_directory, "detect_radioactivity")
-    logfile_path = os.path.join(output_directory, "logfile.txt")
-    carrier_path = os.path.join(experiment_directory, "carriers.pth")
-    marked_network_path = "experiments/radioactive/train_marked_classifier/checkpoint.pth"
-    
-    os.makedirs(output_directory, exist_ok=True)
-    setup_logger(logfile_path)
+def main(carrier_path, marking_network, target_network, target_checkpoint, batch_size=256, num_workers=1, align=True):   
 
     # Setup Device
     use_cuda = torch.cuda.is_available()
-    print(f"CUDA Available? {use_cuda}")
+    logger.info(f"CUDA Available? {use_cuda}")
     device = torch.device("cuda" if use_cuda else "cpu")
 
     # Setup Dataloader
@@ -129,49 +126,70 @@ def main(batch_size=256, num_workers=1):
     # Load Carrier
     carrier = torch.load(carrier_path).numpy()
 
-    # Recreate marking network and remove fully connected layer
-    marking_network = torchvision.models.resnet18(pretrained=True)
-    marking_network.fc = nn.Sequential()
     marking_network.to(device)
     marking_network.eval()    
+
+    target_network.to(device)
+    target_network.eval()
 
     t = Timer()
     t.start()
 
-    # Load Target Network and remove fully connected layer
-    target_checkpoint = torch.load(marked_network_path)
-    target_network = torchvision.models.resnet18(pretrained=False, num_classes=10)
-    target_network.load_state_dict(target_checkpoint["model_state_dict"])
-    target_network.fc = nn.Sequential()
-    target_network.to(device)
-    target_network.eval()
-
     # Extract features
-    logger.info("Extracting image features after running through marking and target networks.")
+    logger.info("Extracting image features from marking and target networks.")
     features_marking, _ = extract_features(test_set_loader, marking_network, device, verbose=False)
     features_target, _  = extract_features(test_set_loader, target_network, device, verbose=False)
     features_marking = features_marking.numpy()
     features_target = features_target.numpy()
 
     # Align spaces
-    X, residuals, rank, s = np.linalg.lstsq(features_marking, features_target)
-    print("Norm of residual: %.4e" % np.linalg.norm(np.dot(features_marking, X) - features_target)**2)
-
     W = target_checkpoint["model_state_dict"]["fc.weight"].cpu().numpy()
-    W = np.dot(W, X.T)
-    W /= np.linalg.norm(W, axis=1, keepdims=True)
+    if align:
+        logger.info("Aligning marking and target network feature space with least squares")
+        X, residuals, rank, s = np.linalg.lstsq(features_marking, features_target)
+        logger.info("Norm of residual: %.4e" % np.linalg.norm(np.dot(features_marking, X) - features_target)**2)
+        W = np.dot(W, X.T)
 
     # Computing scores
-    scores = np.sum(W * carrier, axis=1)
+    W /= np.linalg.norm(W, axis=1, keepdims=True)
 
-    print("Mean p-value is at %d times sigma" % int(scores.mean() * np.sqrt(W.shape[0] * carrier.shape[1])))
-    print("Epoch of the model: %d" % target_checkpoint["epoch"])
+    scores = np.sum(W * carrier, axis=1)
+    print(f"SCORES: {scores}")
+
+    logger.info("Mean p-value is at %d times sigma" % int(scores.mean() * np.sqrt(W.shape[0] * carrier.shape[1])))
+    logger.info("Epoch of the model: %d" % target_checkpoint["epoch"])
 
     p_vals = [cosine_pvalue(c, d=carrier.shape[1]) for c in list(scores)]
-    print(f"log10(p)={np.log10(combine_pvalues(p_vals)[1])}")
+    print(f"Cosine P values: {p_vals}")
+    print(f"np.sum(np.log(p_vals)): {np.sum(np.log(p_vals))}")
+
+    logger.info(p_vals)
+    combined_pval = combine_pvalues(p_vals)[1]
+    logger.info(f"log10(p)={np.log10(combined_pval)}")
 
     elapsed_time = t.stop()
-    print("Total took %.2f" % (elapsed_time))
+    logger.info("Total took %.2f" % (elapsed_time))
+
+    return(combined_pval)
 
 if __name__ == '__main__':
-    main()
+    experiment_directory = "experiments/radioactive/"
+    output_directory = os.path.join(experiment_directory, "detect_radioactivity")
+    logfile_path = os.path.join(output_directory, "logfile.txt")
+    os.makedirs(output_directory, exist_ok=True)
+    setup_logger(logfile_path)
+
+    carrier_path = os.path.join(experiment_directory, "carriers.pth")
+
+    # Recreate marking network and remove fully connected layer
+    marking_network = torchvision.models.resnet18(pretrained=True)
+    marking_network.fc = nn.Sequential()
+
+    # Load Target Network and remove fully connected layer
+    target_network_path = "experiments/radioactive/train_marked_classifier/checkpoint.pth"
+    target_checkpoint = torch.load(target_network_path)
+    target_network = torchvision.models.resnet18(pretrained=False, num_classes=10)
+    target_network.load_state_dict(target_checkpoint["model_state_dict"])
+    target_network.fc = nn.Sequential()
+
+    main(carrier_path, marking_network, target_network, target_checkpoint)

@@ -85,7 +85,7 @@ def train_model(device, model, train_set_loader, optimizer):
         correct += predicted.eq(targets.data).cpu().sum()
 
     average_train_loss = total_loss / total
-    accuracy = 100. * correct/total
+    accuracy = 100. * correct.item() / total
 
     return average_train_loss, accuracy
 
@@ -104,19 +104,19 @@ def test_model(device, model, test_set_loader, optimizer):
             _, predicted = torch.max(outputs.data, 1)
             correct += predicted.eq(targets.data).cpu().sum()
 
-    accuracy = 100. * correct/total
+    accuracy = 100. * correct.item() / total
     return accuracy
 
 
-def main(experiment_name, marked_images_directory, optimizer, lr_scheduler=None, epochs=150, batch_size=512, num_workers=1):
+def main(marked_images_directory, optimizer_callback, output_directory, tensorboard_log_directory,
+         custom_model=None, lr_scheduler=None, epochs=150, batch_size=512, num_workers=1):
     """ 
-    Basically a straight copy of our resnet18_on_cifar10.py example. Only difference is we make use
-    of a training dataset with certain examples replaced by marked alternatives.
-    Just run tensorboard from the same directory to see training results.
+    The core of this is a straight copy of our resnet18_on_cifar10.py example. We have added the ability to
+    override the model used. The optimizer callback passes the entire model rather then just the params in 
+    case you want to train only certain parts of the network F. We also make use of a training dataset with 
+    certain examples replaced by marked alternatives passed in.
     """
 
-    output_directory_root = "experiments/radioactive"
-    output_directory = os.path.join(output_directory_root, experiment_name)
     if not os.path.isdir(output_directory):
         os.makedirs(output_directory, exist_ok=True)
 
@@ -125,8 +125,6 @@ def main(experiment_name, marked_images_directory, optimizer, lr_scheduler=None,
     setup_logger(logfile_path)
 
     # Setup TensorBoard logging
-    tensorboard_log_directory = os.path.join("runs", experiment_name)
-    shutil.rmtree(tensorboard_log_directory, ignore_errors=True)
     tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)
 
     # Choose Training Device
@@ -138,9 +136,13 @@ def main(experiment_name, marked_images_directory, optimizer, lr_scheduler=None,
     train_set_loader, test_set_loader = get_data_loaders(marked_images_directory, batch_size, num_workers)
 
     # Create Model & Optimizer
-    model = torchvision.models.resnet18(pretrained=False, num_classes=10)
+    model = None
+    if custom_model:
+        model = custom_model # Used in our paper replication to tweak the network
+    else:
+        model = torchvision.models.resnet18(pretrained=False, num_classes=10)
     model.to(device)
-    optimizer = optimizer(model.parameters())
+    optimizer = optimizer_callback(model)
     if lr_scheduler:
         lr_scheduler = lr_scheduler(optimizer)
 
@@ -211,10 +213,16 @@ def main(experiment_name, marked_images_directory, optimizer, lr_scheduler=None,
         logger.info("")
 
 if __name__ == '__main__':
-    experiment_name = "train_marked_classifier"
+    """
+    Basic Example
+    You will need to blow away the TensorBoard logs and checkpoint file if you want
+    to train from scratch a second time.
+    """
     marked_images_directory = "experiments/radioactive/marked_images"
-
-    optimizer = lambda x : torch.optim.AdamW(x)
+    output_directory="experiments/radioactive/train_marked_classifier"
+    tensorboard_log_directory="runs/train_marked_classifier"
+    optimizer = lambda model : torch.optim.AdamW(model.parameters())
     epochs = 60
     batch_size = 512
-    main(experiment_name, marked_images_directory, optimizer, epochs=epochs, batch_size=batch_size)
+    main(marked_images_directory, optimizer, output_directory, tensorboard_log_directory,
+         epochs=epochs, batch_size=batch_size)

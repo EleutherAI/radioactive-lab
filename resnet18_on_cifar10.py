@@ -89,7 +89,7 @@ def train_model(device, model, train_set_loader, optimizer):
         correct += predicted.eq(targets.data).cpu().sum()
 
     average_train_loss = total_loss / total
-    accuracy = 100. * correct/total
+    accuracy = 100. * correct.item()/total
 
     return average_train_loss, accuracy
 
@@ -108,13 +108,13 @@ def test_model(device, model, test_set_loader, optimizer):
             _, predicted = torch.max(outputs.data, 1)
             correct += predicted.eq(targets.data).cpu().sum()
 
-    accuracy = 100. * correct/total
+    accuracy = 100. * correct.item()/total
     return accuracy
 
 # A simple example of a resnet18 training on CIFAR10 to demonstrate ML training optimization
-def main(experiment_name, optimizer, lr_scheduler=None, epochs=150, batch_size=512, num_workers=1):
-
-    output_directory_root = "experiments/resnet18_on_cifar10"
+def main(experiment_name, optimizer, output_directory_root="experiments/resnet18_on_cifar10",
+         lr_scheduler=None, epochs=150, batch_size=512, num_workers=1):
+    
     output_directory = os.path.join(output_directory_root, experiment_name)
     if not os.path.isdir(output_directory):
         os.makedirs(output_directory, exist_ok=True)
@@ -138,7 +138,9 @@ def main(experiment_name, optimizer, lr_scheduler=None, epochs=150, batch_size=5
     model = torchvision.models.resnet18(pretrained=False, num_classes=10)
     model.to(device)
     optimizer = optimizer(model.parameters())
-    lr_scheduler = lr_scheduler(optimizer)
+
+    if lr_scheduler:
+        lr_scheduler = lr_scheduler(optimizer)
 
     logger.info("=========== Commencing Training ===========")
     logger.info(f"Epoch Count: {epochs}")
@@ -180,8 +182,10 @@ def main(experiment_name, optimizer, lr_scheduler=None, epochs=150, batch_size=5
         test_accuracy = test_model(device, model, test_set_loader, optimizer)
         tensorboard_summary_writer.add_scalar("test_accuracy", test_accuracy, epoch)
 
+        scheduler_dict = None
         if lr_scheduler:
             lr_scheduler.step()
+            scheduler_dict = lr_scheduler.state_dict()
 
         # Save Checkpoint
         logger.info("Saving checkpoint.")
@@ -189,7 +193,7 @@ def main(experiment_name, optimizer, lr_scheduler=None, epochs=150, batch_size=5
             'epoch': epoch,
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
-            'lr_scheduler_state_dict': lr_scheduler.state_dict(),
+            'lr_scheduler_state_dict': scheduler_dict,
             'train_loss': train_loss,
             'train_accuracy': train_accuracy,
             'test_accuracy': test_accuracy
@@ -233,7 +237,8 @@ def batch_size_linear_search():
     plt.xlabel("Batch Size")
     plt.ylabel("Epoch Time")
     plt.title("Batch Size vs Epoch Time")
-    plt.show()
+    plt.show()    
+
 
 # Vanilla SGD
 def experiment1():
@@ -371,8 +376,8 @@ def experiment():
     #for experiment in adam_experiments:
     #    experiment()
 
-    #for experiment in adamw_experiments:
-    #    experiment()
+    for experiment in adamw_experiments:
+        experiment()
 
     # for experiment in one_cycle_experiments:
     #     experiment()

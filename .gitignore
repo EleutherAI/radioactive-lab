@@ -8,3 +8,7 @@ radioactive_text.pyproj
 radioactive_text.sln
 test.py
 multi_gpu_test.py
+experiments*
+runs*
+radioactive-lab.pyproj
+radioactive-lab.sln
