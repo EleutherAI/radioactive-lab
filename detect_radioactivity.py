@@ -27,18 +27,15 @@ def cosine_pvalue(c, d):
     """
     assert type(c) in [float, np.float64, np.float32]
 
-    #something = 0.5 * betainc(1/2, 4, 0.3)
-    #print(something)
+    a = (d - 1) / 2.
+    b = 1 / 2.
 
-    #a = (d - 1) / 2.
-    #b = 1 / 2.
-
-    b = (d - 1) / 2.
-    a = 1 / 2.
+    #b = (d - 1) / 2.
+    #a = 1 / 2.
 
     if c >= 0:
-        #return 0.5 * betainc(a, b, 1-c**2)
-        return 1 - betainc(a, b, c)
+        return 0.5 * betainc(a, b, 1-c**2)
+        #return 1 - betainc(a, b, c)
     else:
         return 1 - cosine_pvalue(-c, d=d)
 
@@ -135,42 +132,41 @@ def main(carrier_path, marking_network, target_network, target_checkpoint, batch
     t = Timer()
     t.start()
 
-    # Extract features
-    logger.info("Extracting image features from marking and target networks.")
-    features_marking, _ = extract_features(test_set_loader, marking_network, device, verbose=False)
-    features_target, _  = extract_features(test_set_loader, target_network, device, verbose=False)
-    features_marking = features_marking.numpy()
-    features_target = features_target.numpy()
-
-    # Align spaces
+    # Align spaces (Or Not)
     W = target_checkpoint["model_state_dict"]["fc.weight"].cpu().numpy()
     if align:
         logger.info("Aligning marking and target network feature space with least squares")
+
+        logger.info("Extracting image features from marking and target networks.")
+        features_marking, _ = extract_features(test_set_loader, marking_network, device, verbose=False)
+        features_target, _  = extract_features(test_set_loader, target_network, device, verbose=False)
+        features_marking = features_marking.numpy()
+        features_target = features_target.numpy()
+
         X, residuals, rank, s = np.linalg.lstsq(features_marking, features_target)
         logger.info("Norm of residual: %.4e" % np.linalg.norm(np.dot(features_marking, X) - features_target)**2)
         W = np.dot(W, X.T)
 
     # Computing scores
     W /= np.linalg.norm(W, axis=1, keepdims=True)
-
     scores = np.sum(W * carrier, axis=1)
-    print(f"SCORES: {scores}")
+    #print(f"SCORES: {scores}")
 
     logger.info("Mean p-value is at %d times sigma" % int(scores.mean() * np.sqrt(W.shape[0] * carrier.shape[1])))
     logger.info("Epoch of the model: %d" % target_checkpoint["epoch"])
 
     p_vals = [cosine_pvalue(c, d=carrier.shape[1]) for c in list(scores)]
-    print(f"Cosine P values: {p_vals}")
-    print(f"np.sum(np.log(p_vals)): {np.sum(np.log(p_vals))}")
+    #print(f"Cosine P values: {p_vals}")
+    #print(f"np.sum(np.log(p_vals)): {np.sum(np.log(p_vals))}")
 
-    logger.info(p_vals)
+    #logger.info(p_vals)
     combined_pval = combine_pvalues(p_vals)[1]
     logger.info(f"log10(p)={np.log10(combined_pval)}")
 
     elapsed_time = t.stop()
     logger.info("Total took %.2f" % (elapsed_time))
 
-    return(combined_pval)
+    return (scores, p_vals, combined_pval)
 
 if __name__ == '__main__':
     experiment_directory = "experiments/radioactive/"

@@ -143,9 +143,10 @@ def step4():
 
     # Perform detection on unmarked network as sanity test
     random_carrier_path = "experiments/table1/1_percent/carriers.pth"
-    p_value = detect_radioactivity(random_carrier_path, marking_network, marking_network, 
-                                   marking_checkpoint, align=False)
-    p_values.append(p_value)
+    (scores, p_vals, combined_pval) = detect_radioactivity(random_carrier_path, marking_network, 
+                                                           marking_network, marking_checkpoint, 
+                                                           align=False)
+    p_values.append(combined_pval)
 
     # The Rest
     for run in [1,2,5,10]:
@@ -158,8 +159,9 @@ def step4():
         target_network.load_state_dict(target_checkpoint["model_state_dict"])
         target_network.fc = nn.Sequential()
 
-        p_value = detect_radioactivity(carrier_path, marking_network, target_network, target_checkpoint)
-        p_values.append(p_value)
+        (scores, p_vals, combined_pval) = detect_radioactivity(carrier_path, marking_network, 
+                                                               target_network, target_checkpoint)
+        p_values.append(combined_pval)
 
     return p_values
 
