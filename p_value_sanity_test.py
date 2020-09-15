@@ -196,9 +196,15 @@ if __name__ == "__main__":
     datas = torch.load(data_file)
     scores, p_vals, combined_pvals = zip(*datas)
     plot_histogram(scores, p_vals, combined_pvals)
-    #p_vals, combined_pvals = rerun_pvalues(scores, cosine_pvalue_full_switch)
-    ##class_id=1
-    #plot_histogram(scores, p_vals, combined_pvals)
+
+    # Swap a and b
+    p_vals, combined_pvals = rerun_pvalues(scores, cosine_pvalue_full_switch)    
+    plot_histogram(scores, p_vals, combined_pvals)
+
+    # Full changes
+    p_vals, combined_pvals = rerun_pvalues(scores, cosine_pvalue_swap_a_b)        
+    plot_histogram(scores, p_vals, combined_pvals)
+
 
     #verify_carriers()
 

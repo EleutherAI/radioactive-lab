@@ -23,17 +23,16 @@ logger = logging.getLogger(__name__)
 """
 1. Train a resnet18 classifier on cifar10
 2. Generate 1, 2, 5, 10% Markings using network from step 1 as marking network.
-3. Create a logistic regression network on the end of the pretrained resnet from step 1.
-   Train it using the radioactive data from step 2.
+3. Train a resnet18 from scratch using the marked data from step 2.
 4. Perform the radioactive detection p-tests on the network trained in step 3. Compare the top-1 accuracy
    of this network with the network trained in step 1.
-5. Generate Table 1. "Center Crop" augmentation makes no sense when using CIFAR10 data so this is skipped.
+5. Generate Table 2. "Center Crop" augmentation makes no sense when using CIFAR10 data so this is skipped.
 """
 
 def do_marking_run(class_marking_percentage, run_name, overwrite=False):
 
     # Setup experiment directory
-    experiment_directory = os.path.join("experiments/table1", run_name)    
+    experiment_directory = os.path.join("experiments/table2", run_name)    
     if os.path.isdir(experiment_directory):
         if not overwrite:
             raise Exception("Overwrite set to False. Don't want you blowing away all your trained data..")
@@ -44,7 +43,7 @@ def do_marking_run(class_marking_percentage, run_name, overwrite=False):
     setup_logger(filepath=logfile_path)
 
     # Prepare for TensorBoard
-    tensorboard_log_directory_base = f"runs/table1_{run_name}"
+    tensorboard_log_directory_base = f"runs/table2_{run_name}"
     our_tensorboard_logs = glob.glob(f"{tensorboard_log_directory_base}*")
     for tensorboard_log in our_tensorboard_logs:
         shutil.rmtree(tensorboard_log)
@@ -57,7 +56,7 @@ def do_marking_run(class_marking_percentage, run_name, overwrite=False):
 
     # Marking network is the resnet18 we trained on CIFAR10
     marking_network = torchvision.models.resnet18(pretrained=False, num_classes=10)    
-    checkpoint_path = "experiments/table1/step1/checkpoint.pth"
+    checkpoint_path = "experiments/table2/step1/checkpoint.pth"
     marking_network_checkpoint = torch.load(checkpoint_path)
     marking_network.load_state_dict(marking_network_checkpoint["model_state_dict"])
 
@@ -83,29 +82,18 @@ def do_marking_run(class_marking_percentage, run_name, overwrite=False):
     tensorboard_summary_writer.add_image('marked_images', img_grid)
 
 def do_training_run(run_name):
-    # Load our trained resnet18 from step1
-    model = torchvision.models.resnet18(pretrained=False, num_classes=10)
-    checkpoint_path = "experiments/table1/step1/checkpoint.pth"
-    checkpoint = torch.load(checkpoint_path)
-    model.load_state_dict(checkpoint["model_state_dict"])
+    optimizer = lambda model : torch.optim.AdamW(model.parameters())
 
-    # Retrain the fully connected layer only
-    for param in model.parameters():
-        param.requires_grad = False
-    num_classes = 10
-    model.fc = nn.Linear(model.fc.in_features, num_classes)
-    optimizer = lambda model : torch.optim.AdamW(model.fc.parameters())
-
-    tensorboard_log_directory = f"runs/table1_{run_name}_target"
-    epochs = 20
-    output_directory = f"experiments/table1/{run_name}/marked_classifier"
-    marked_images_directory = f"experiments/table1/{run_name}/marked_images"
+    tensorboard_log_directory = f"runs/table2_{run_name}_target"
+    epochs = 60
+    output_directory = f"experiments/table2/{run_name}/marked_classifier"
+    marked_images_directory = f"experiments/table2/{run_name}/marked_images"
     train_marked_classifier(marked_images_directory, optimizer, output_directory, tensorboard_log_directory, 
-                            custom_model=model, epochs=epochs)
+                            epochs=epochs)
 
 def step1():
     optimizer = lambda x : torch.optim.AdamW(x)
-    output_directory_root = "experiments/table1"
+    output_directory_root = "experiments/table2"
     experiment_name = "step1"
     epochs = 60
     resnet18cifar10.main(experiment_name, optimizer, 
@@ -127,20 +115,20 @@ def step3(marking_percentages):
         do_training_run(f"{marking_percentage}_percent")
 
 def step4(marking_percentages):
-    logfile_path = f"experiments/table1/detect_radioactivity.log"
+    logfile_path = f"experiments/table2/detect_radioactivity.log"
     setup_logger(logfile_path)
 
     p_values = []
 
     # Load Marking Network and remove fully connected layer
     marking_network = torchvision.models.resnet18(pretrained=False, num_classes=10)
-    marking_checkpoint_path = "experiments/table1/step1/checkpoint.pth"
+    marking_checkpoint_path = "experiments/table2/step1/checkpoint.pth"
     marking_checkpoint = torch.load(marking_checkpoint_path)
     marking_network.load_state_dict(marking_checkpoint["model_state_dict"])
     marking_network.fc = nn.Sequential()
 
     ## Perform detection on unmarked network as sanity test
-    #random_carrier_path = "experiments/table1/1_percent/carriers.pth"
+    #random_carrier_path = "experiments/table2/1_percent/carriers.pth"
     #(scores, p_vals, combined_pval) = detect_radioactivity(random_carrier_path, marking_network, 
     #                                                       marking_network, marking_checkpoint, 
     #                                                       align=False)
@@ -150,31 +138,30 @@ def step4(marking_percentages):
     # The Rest
     for run in marking_percentages:
         run_name = f"{run}_percent"
-        carrier_path = f"experiments/table1/{run_name}/carriers.pth"
+        carrier_path = f"experiments/table2/{run_name}/carriers.pth"
 
         target_network = torchvision.models.resnet18(pretrained=False, num_classes=10)
-        target_checkpoint_path = f"experiments/table1/{run_name}/marked_classifier/checkpoint.pth"
+        target_checkpoint_path = f"experiments/table2/{run_name}/marked_classifier/checkpoint.pth"
         target_checkpoint = torch.load(target_checkpoint_path)
         target_network.load_state_dict(target_checkpoint["model_state_dict"])
         target_network.fc = nn.Sequential()
 
         (scores, p_vals, combined_pval) = detect_radioactivity(carrier_path, marking_network, 
-                                                               target_network, target_checkpoint,
-                                                               align=False)
+                                                               target_network, target_checkpoint)
         p_values.append(combined_pval)
 
     return p_values
 
 def step5(marking_percentages, p_values):
     # Get Vanilla Accuracy
-    vanilla_checkpoint_path = "experiments/table1/step1/checkpoint.pth"
+    vanilla_checkpoint_path = "experiments/table2/step1/checkpoint.pth"
     vanilla_checkpoint = torch.load(vanilla_checkpoint_path)
 
     # The Rest
     accuracies = [vanilla_checkpoint["test_accuracy"]]
     for run in marking_percentages:
         run_name = f"{run}_percent"
-        marked_checkpoint_path = f"experiments/table1/{run_name}/marked_classifier/checkpoint.pth"
+        marked_checkpoint_path = f"experiments/table2/{run_name}/marked_classifier/checkpoint.pth"
         marked_checkpoint = torch.load(marked_checkpoint_path)
         accuracies.append(marked_checkpoint["test_accuracy"])
 
@@ -199,12 +186,11 @@ def step5(marking_percentages, p_values):
 
 if __name__ == '__main__':
     #step1()
-    #step2([1,2,5,10])
-    #step2([50])
-    #step3([1,2,5,10])
-    #step3([50])
+    #step2([1, 2, 5, 10, 50])
+    step3([1, 2, 5, 10, 50])
     p_values = step4([1, 2, 5, 10, 50])
-    p_values_file = "experiments/table1/p_values.pth"
+    p_values_file = "experiments/table2/p_values.pth"
     torch.save(p_values, p_values_file)
     p_values = torch.load(p_values_file)
     step5([1, 2, 5, 10, 50], p_values)
+
