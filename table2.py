@@ -9,7 +9,7 @@ import torch.nn as nn
 import numpy as np
 
 import resnet18_on_cifar10 as resnet18cifar10
-from make_data_radioactive import get_images_for_marking
+from make_data_radioactive import get_images_for_marking, get_images_for_marking_multiclass
 from make_data_radioactive import main as do_marking
 from train_marked_classifier import main as train_marked_classifier
 from detect_radioactivity import main as detect_radioactivity
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 5. Generate Table 2. "Center Crop" augmentation makes no sense when using CIFAR10 data so this is skipped.
 """
 
-def do_marking_run(class_marking_percentage, run_name, overwrite=False):
+def do_marking_run(overall_marking_percentage, run_name, multi_class=False, overwrite=False):
 
     # Setup experiment directory
     experiment_directory = os.path.join("experiments/table2", run_name)    
@@ -48,11 +48,7 @@ def do_marking_run(class_marking_percentage, run_name, overwrite=False):
     for tensorboard_log in our_tensorboard_logs:
         shutil.rmtree(tensorboard_log)
 
-    # Load randomly sampled images from random class along with list of original indexes 
     training_set = torchvision.datasets.CIFAR10(root="experiments/datasets", download=True)
-    class_id, images, original_indexes = get_images_for_marking(training_set, 
-        class_marking_percentage=class_marking_percentage,
-        tensorboard_log_directory=tensorboard_log_directory_base)
 
     # Marking network is the resnet18 we trained on CIFAR10
     marking_network = torchvision.models.resnet18(pretrained=False, num_classes=10)    
@@ -66,14 +62,44 @@ def do_marking_run(class_marking_percentage, run_name, overwrite=False):
     carriers /= torch.norm(carriers, dim=1, keepdim=True)
     torch.save(carriers, os.path.join(experiment_directory, "carriers.pth"))
 
-    # Run!
-    optimizer = lambda x : torch.optim.Adam(x, lr=0.1)
-    epochs = 100
-    batch_size = 32
-    output_directory = os.path.join(experiment_directory, "marked_images")
-    marked_images = do_marking(output_directory, marking_network, images, original_indexes, carriers, 
-                               class_id, optimizer, tensorboard_log_directory_base, epochs=epochs, 
-                               batch_size=batch_size, overwrite=True)
+    marked_images = []
+    if multi_class:
+        # { 0 : [(image1, original_index1),(image2, original_index2)...], 1 : [....] }
+        image_data = get_images_for_marking_multiclass(training_set,
+                                                       tensorboard_log_directory_base,
+                                                       overall_marking_percentage)
+
+        for class_id, image_list in image_data.items():
+            images, original_indexes = zip(*image_list)
+            images = list(images)
+            original_indexes = list(original_indexes)
+            optimizer = lambda x : torch.optim.Adam(x, lr=0.1)
+            epochs = 100
+            batch_size = 32
+            output_directory = os.path.join(experiment_directory, "marked_images")
+            marked_images_temp = do_marking(output_directory, marking_network, images, original_indexes, carriers, 
+                                            class_id, optimizer, tensorboard_log_directory_base, epochs=epochs, 
+                                            batch_size=batch_size, overwrite=False)
+            
+            marked_images =  marked_images + marked_images_temp
+        
+    else:
+        # Load randomly sampled images from random class along with list of original indexes 
+        # Assume each class has equal number of images, adjust class_marking_percentage to
+        # fit overall marking_percentage
+        class_marking_percentage = overall_marking_percentage * len(training_set.classes)
+        class_id, images, original_indexes = get_images_for_marking(training_set,
+                                                                    tensorboard_log_directory_base,
+                                                                    class_marking_percentage)
+
+        optimizer = lambda x : torch.optim.Adam(x, lr=0.1)
+        epochs = 100
+        batch_size = 32
+        output_directory = os.path.join(experiment_directory, "marked_images")
+        marked_images = do_marking(output_directory, marking_network, images, original_indexes, carriers, 
+                                   class_id, optimizer, tensorboard_log_directory_base, epochs=epochs, 
+                                   batch_size=batch_size, overwrite=True)
+
 
     # Show marked images in Tensorboard
     tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory_base)
@@ -103,7 +129,7 @@ def step1():
 def step2(marking_percentages): 
 
     for marking_percentage in marking_percentages:
-        do_marking_run(marking_percentage,f"{marking_percentage}_percent")
+        do_marking_run(marking_percentage,f"{marking_percentage}_percent", multi_class=True)
 
 def step3(marking_percentages): 
     """
@@ -185,12 +211,13 @@ def step5(marking_percentages, p_values):
 
 
 if __name__ == '__main__':
-    #step1()
-    #step2([1, 2, 5, 10, 50])
-    step3([1, 2, 5, 10, 50])
-    p_values = step4([1, 2, 5, 10, 50])
+    marking_percentages = [1, 2, 5, 10, 20]
+    step1()
+    step2(marking_percentages)
+    step3(marking_percentages)
+    p_values = step4(marking_percentages)
     p_values_file = "experiments/table2/p_values.pth"
     torch.save(p_values, p_values_file)
     p_values = torch.load(p_values_file)
-    step5([1, 2, 5, 10, 50], p_values)
+    step5(marking_percentages, p_values)
 

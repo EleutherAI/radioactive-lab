@@ -158,6 +158,7 @@ def step4(marking_percentages):
         target_network.load_state_dict(target_checkpoint["model_state_dict"])
         target_network.fc = nn.Sequential()
 
+        # No need to align when only retraining the logistic regression
         (scores, p_vals, combined_pval) = detect_radioactivity(carrier_path, marking_network, 
                                                                target_network, target_checkpoint,
                                                                align=False)
@@ -198,13 +199,12 @@ def step5(marking_percentages, p_values):
 
 
 if __name__ == '__main__':
-    #step1()
-    #step2([1,2,5,10])
-    #step2([50])
-    #step3([1,2,5,10])
-    #step3([50])
-    p_values = step4([1, 2, 5, 10, 50])
+    marking_percentage = [1, 2, 5, 10, 20]
+    step1()
+    step2(marking_percentage)
+    step3(marking_percentage)
+    p_values = step4(marking_percentage)
     p_values_file = "experiments/table1/p_values.pth"
     torch.save(p_values, p_values_file)
     p_values = torch.load(p_values_file)
-    step5([1, 2, 5, 10, 50], p_values)
+    step5(marking_percentage], p_values)

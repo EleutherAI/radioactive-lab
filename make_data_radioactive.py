@@ -65,17 +65,16 @@ def psnr(delta):
     return 20 * np.log10(255) - 10 * np.log10(np.mean(delta**2))
 
 
+# Supports one class at a time - just run multiple times
 def main(output_directory, marking_network, images, original_indexes, carriers, class_id,
          optimizer_fn, tensorboard_log_directory_base, batch_size=32, epochs=90, lambda_1=0.0005, lambda_2=0.01, 
          angle=None, half_cone=True, radius=10, overwrite=False):
 
-    # Ensure we don't overwrite previous marked images if not desired
-    if os.path.isdir(output_directory):
-        if overwrite:
-            shutil.rmtree(output_directory)
-        else:                
-            raise FileExistsError(f"Image output directory {output_directory} already exists." \
-               "Set overwrite=True if this is what you desire.")
+    if os.path.isdir(output_directory) and overwrite:
+        shutil.rmtree(output_directory)
+        #else:                
+        #    raise FileExistsError(f"Image output directory {output_directory} already exists." \
+        #       "Set overwrite=True if this is what you desire.")
 
     # Save the images in their respective class - We use torchvision.datasets.datasetfolder in training classifier
     output_directory = os.path.join(output_directory, str(class_id))
@@ -193,6 +192,10 @@ def main(output_directory, marking_network, images, original_indexes, carriers, 
             }
 
             tensorboard_summary_writer.add_scalar("train_loss", loss.item(), iteration)
+            tensorboard_summary_writer.add_scalar("alignment_loss", loss_ft.item(), iteration)
+            tensorboard_summary_writer.add_scalar("image_diff_loss", loss_norm.item(), iteration)
+            tensorboard_summary_writer.add_scalar("feature_diff_loss", loss_ft_l2.item(), iteration)
+
 
             #if angle is not None:
             #    logs["R"] = - (loss_ft + loss_ft_l2).item()
@@ -266,6 +269,33 @@ def get_images_for_marking(training_set, tensorboard_log_directory, class_markin
 
     return chosen_image_class, images_for_marking, train_marked_indexes
 
+def get_images_for_marking_multiclass(training_set, tensorboard_log_directory, overall_marking_percentage):
+
+    # Randomly sample images
+    total_marked_images = int(len(training_set) * (overall_marking_percentage / 100))
+    train_marked_indexes = random.sample(range(0, len(training_set)), total_marked_images)
+
+    # Sort images into classes, rewriting the marking code for multi-class is messy
+    # Transform and add to dictionary of lists, dictionary index is class id
+    # { 0 : [(image1, original_index1),(image2, original_index2)...], 1 : [....] }
+    transform = transforms.Compose([transforms.ToTensor(), NORMALIZE_CIFAR])
+    image_data = {class_id:[] for class_id in range(0, len(training_set.classes))}    
+    for index in train_marked_indexes:
+        image, label = training_set[index]
+        image_data[label].append((transform(image).unsqueeze(0), index))
+
+    # Save to tensorboard - sorted by class, original_index
+    tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)
+    images = []
+    for class_id, image_list in image_data.items():
+        _, original_indexes = zip(*image_list)
+        original_indexes = list(original_indexes)
+        for index in original_indexes:
+            images.append(transforms.ToTensor()(training_set.data[index]))
+    img_grid = torchvision.utils.make_grid(images, nrow=16)
+    tensorboard_summary_writer.add_image('images_for_marking', img_grid)
+
+    return image_data
 
 if __name__ == '__main__':
 
