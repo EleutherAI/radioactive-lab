@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 5. Generate Table 1. "Center Crop" augmentation makes no sense when using CIFAR10 data so this is skipped.
 """
 
-def do_marking_run(class_marking_percentage, run_name, overwrite=False):
+def do_marking_run(class_marking_percentage, run_name, augment=True, overwrite=False):
 
     # Setup experiment directory
     experiment_directory = os.path.join("experiments/table1", run_name)    
@@ -74,7 +74,7 @@ def do_marking_run(class_marking_percentage, run_name, overwrite=False):
     output_directory = os.path.join(experiment_directory, "marked_images")
     marked_images = do_marking(output_directory, marking_network, images, original_indexes, carriers, 
                                class_id, optimizer, tensorboard_log_directory_base, epochs=epochs, 
-                               batch_size=batch_size, overwrite=True)
+                               batch_size=batch_size, overwrite=True, augment=augment)
 
     # Show marked images in Tensorboard
     tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory_base)
