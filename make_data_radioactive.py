@@ -68,7 +68,7 @@ def psnr(delta):
 # Supports one class at a time - just run multiple times
 def main(output_directory, marking_network, images, original_indexes, carriers, class_id,
          optimizer_fn, tensorboard_log_directory_base, batch_size=32, epochs=90, lambda_1=0.0005, lambda_2=0.01, 
-         angle=None, half_cone=True, radius=10, overwrite=False):
+         angle=None, half_cone=True, radius=10, overwrite=False, augment=True):
 
     if os.path.isdir(output_directory) and overwrite:
         shutil.rmtree(output_directory)
@@ -151,9 +151,12 @@ def main(output_directory, marking_network, images, original_indexes, carriers, 
             logger.info("Augmenting images")
             batch = []
             for x in img_slice:
-                aug_params = data_augmentation.sample_params(x)
-                aug_img = data_augmentation(x, aug_params)
-                batch.append(aug_img)
+                if augment:
+                    aug_params = data_augmentation.sample_params(x)
+                    aug_img = data_augmentation(x, aug_params)
+                    batch.append(aug_img)
+                else:
+                    batch.append(x)
             batch = torch.cat(batch).to(device)
 
             # Forward augmented images

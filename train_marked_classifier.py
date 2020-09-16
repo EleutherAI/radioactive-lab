@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 def numpy_loader(x):
     return transforms.ToPILImage()(np.load(x))
 
-def get_data_loaders(marked_images_directory, batch_size, num_workers):
+def get_data_loaders(marked_images_directory, batch_size, num_workers, augment):
 
     cifar10_dataset_root = "experiments/datasets" # Will download here
 
@@ -41,10 +41,14 @@ def get_data_loaders(marked_images_directory, batch_size, num_workers):
     merged_train_set = MergedDataset(base_train_set, marked_images, merge_to_vanilla)
 
     # Add Transform and Get Training set dataloader
-    train_transform = transforms.Compose([transforms.RandomCrop(32, padding=4),
-                                          transforms.RandomHorizontalFlip(),
-                                          transforms.ToTensor(),
-                                          NORMALIZE_CIFAR])
+    transforms_list = []
+    if augment:
+        transforms_list += [transforms.RandomCrop(32, padding=4),
+                            transforms.RandomHorizontalFlip()]
+    
+    transforms_list += [transforms.ToTensor(), NORMALIZE_CIFAR]
+    
+    train_transform = transforms.Compose(transforms_list)
     merged_train_set.transform = train_transform
 
     train_set_loader = torch.utils.data.DataLoader(merged_train_set,
@@ -109,7 +113,7 @@ def test_model(device, model, test_set_loader, optimizer):
 
 
 def main(marked_images_directory, optimizer_callback, output_directory, tensorboard_log_directory,
-         custom_model=None, lr_scheduler=None, epochs=150, batch_size=512, num_workers=1):
+         custom_model=None, lr_scheduler=None, augment=True, epochs=150, batch_size=512, num_workers=1):
     """ 
     The core of this is a straight copy of our resnet18_on_cifar10.py example. We have added the ability to
     override the model used. The optimizer callback passes the entire model rather then just the params in 
@@ -133,7 +137,7 @@ def main(marked_images_directory, optimizer_callback, output_directory, tensorbo
     device = "cuda" if use_cuda else "cpu"   
 
     # Datasets and Loaders
-    train_set_loader, test_set_loader = get_data_loaders(marked_images_directory, batch_size, num_workers)
+    train_set_loader, test_set_loader = get_data_loaders(marked_images_directory, batch_size, num_workers, augment)
 
     # Create Model & Optimizer
     model = None

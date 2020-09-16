@@ -9,7 +9,7 @@ import torch.nn as nn
 import numpy as np
 
 import resnet18_on_cifar10 as resnet18cifar10
-from make_data_radioactive import get_images_for_marking
+from make_data_radioactive import get_images_for_marking, get_images_for_marking_multiclass
 from make_data_radioactive import main as do_marking
 from train_marked_classifier import main as train_marked_classifier
 from detect_radioactivity import main as detect_radioactivity
@@ -82,7 +82,64 @@ def do_marking_run(class_marking_percentage, run_name, overwrite=False):
     img_grid = torchvision.utils.make_grid(images_for_tensorboard, nrow=16)
     tensorboard_summary_writer.add_image('marked_images', img_grid)
 
-def do_training_run(run_name):
+def do_marking_run_multiclass(overall_marking_percentage, run_name, augment=True, overwrite=False):
+    # Setup experiment directory
+    experiment_directory = os.path.join("experiments/table1", run_name)    
+    if os.path.isdir(experiment_directory):
+        if not overwrite:
+            raise Exception("Overwrite set to False. Don't want you blowing away all your trained data..")
+        shutil.rmtree(experiment_directory)
+    os.makedirs(experiment_directory)
+
+    logfile_path = os.path.join(experiment_directory, 'marking.log')
+    setup_logger(filepath=logfile_path)
+
+    # Prepare for TensorBoard
+    tensorboard_log_directory_base = f"runs/table1_{run_name}"
+    our_tensorboard_logs = glob.glob(f"{tensorboard_log_directory_base}*")
+    for tensorboard_log in our_tensorboard_logs:
+        shutil.rmtree(tensorboard_log)
+
+    training_set = torchvision.datasets.CIFAR10(root="experiments/datasets", download=True)
+
+    # Marking network is the resnet18 we trained on CIFAR10
+    marking_network = torchvision.models.resnet18(pretrained=False, num_classes=10)    
+    checkpoint_path = "experiments/table1/step1/checkpoint.pth"
+    marking_network_checkpoint = torch.load(checkpoint_path)
+    marking_network.load_state_dict(marking_network_checkpoint["model_state_dict"])
+
+    # Carriers
+    marking_network_fc_feature_size = 512
+    carriers = torch.randn(len(training_set.classes), marking_network_fc_feature_size)
+    carriers /= torch.norm(carriers, dim=1, keepdim=True)
+    torch.save(carriers, os.path.join(experiment_directory, "carriers.pth"))
+
+
+    # { 0 : [(image1, original_index1),(image2, original_index2)...], 1 : [....] }
+    image_data = get_images_for_marking_multiclass(training_set,
+                                                    tensorboard_log_directory_base,
+                                                    overall_marking_percentage)
+
+    marked_images = []
+    for class_id, image_list in image_data.items():
+        images, original_indexes = map(list, zip(*image_list))
+        optimizer = lambda x : torch.optim.Adam(x, lr=0.1)
+        epochs = 100
+        batch_size = 32
+        output_directory = os.path.join(experiment_directory, "marked_images")
+        marked_images_temp = do_marking(output_directory, marking_network, images, original_indexes, carriers, 
+                                        class_id, optimizer, tensorboard_log_directory_base, epochs=epochs, 
+                                        batch_size=batch_size, overwrite=False, augment=augment)
+            
+        marked_images =  marked_images + marked_images_temp   
+
+    # Show marked images in Tensorboard
+    tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory_base)
+    images_for_tensorboard = [transforms.ToTensor()(x) for x in marked_images]
+    img_grid = torchvision.utils.make_grid(images_for_tensorboard, nrow=16)
+    tensorboard_summary_writer.add_image('marked_images', img_grid)
+
+def do_training_run(run_name, augment=True):
     # Load our trained resnet18 from step1
     model = torchvision.models.resnet18(pretrained=False, num_classes=10)
     checkpoint_path = "experiments/table1/step1/checkpoint.pth"
@@ -101,7 +158,7 @@ def do_training_run(run_name):
     output_directory = f"experiments/table1/{run_name}/marked_classifier"
     marked_images_directory = f"experiments/table1/{run_name}/marked_images"
     train_marked_classifier(marked_images_directory, optimizer, output_directory, tensorboard_log_directory, 
-                            custom_model=model, epochs=epochs)
+                            custom_model=model, epochs=epochs, augment=augment)
 
 def step1():
     optimizer = lambda x : torch.optim.AdamW(x)
@@ -113,9 +170,8 @@ def step1():
                          epochs=epochs)
 
 def step2(marking_percentages): 
-
     for marking_percentage in marking_percentages:
-        do_marking_run(marking_percentage,f"{marking_percentage}_percent")
+        do_marking_run_multiclass(marking_percentage, f"{marking_percentage}_percent", augment=False)
 
 def step3(marking_percentages): 
     """
@@ -124,7 +180,7 @@ def step3(marking_percentages):
     """
 
     for marking_percentage in marking_percentages:
-        do_training_run(f"{marking_percentage}_percent")
+        do_training_run(f"{marking_percentage}_percent", augment=False)
 
 def step4(marking_percentages):
     logfile_path = f"experiments/table1/detect_radioactivity.log"
@@ -207,4 +263,4 @@ if __name__ == '__main__':
     p_values_file = "experiments/table1/p_values.pth"
     torch.save(p_values, p_values_file)
     p_values = torch.load(p_values_file)
-    step5(marking_percentage], p_values)
+    step5(marking_percentage, p_values)

@@ -36,7 +36,7 @@ def sample_and_detect():
 
     # Perform detection on unmarked network as sanity test
     datas = []
-    for i in tqdm.tqdm(range(0, 1000)):
+    for i in tqdm.tqdm(range(0, 100)):
         carriers = torch.randn(10, 512)
         carriers /= torch.norm(carriers, dim=1, keepdim=True)
         random_carrier_path = "experiments/sanity_test/carriers.pth"
@@ -192,19 +192,18 @@ def rerun_pvalues(scores, cosine_pval_function):
 
 
 if __name__ == "__main__":
-    #datas = sample_and_detect()
+    datas = sample_and_detect()
     datas = torch.load(data_file)
     scores, p_vals, combined_pvals = zip(*datas)
     plot_histogram(scores, p_vals, combined_pvals)
 
-    # Swap a and b
-    p_vals, combined_pvals = rerun_pvalues(scores, cosine_pvalue_full_switch)    
-    plot_histogram(scores, p_vals, combined_pvals)
+    ## Swap a and b
+    #p_vals, combined_pvals = rerun_pvalues(scores, cosine_pvalue_full_switch)    
+    #plot_histogram(scores, p_vals, combined_pvals)
 
-    # Full changes
-    p_vals, combined_pvals = rerun_pvalues(scores, cosine_pvalue_swap_a_b)        
-    plot_histogram(scores, p_vals, combined_pvals)
-
+    ## Full changes
+    #p_vals, combined_pvals = rerun_pvalues(scores, cosine_pvalue_swap_a_b)        
+    #plot_histogram(scores, p_vals, combined_pvals)
 
     #verify_carriers()
 

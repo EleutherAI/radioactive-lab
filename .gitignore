@@ -12,3 +12,5 @@ experiments*
 runs*
 radioactive-lab.pyproj
 radioactive-lab.sln
+train_feature_space_mapping.py
+old_runs*
