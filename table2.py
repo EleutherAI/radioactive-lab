@@ -249,11 +249,12 @@ def step5(marking_percentages, p_values):
 
 if __name__ == '__main__':
     marking_percentages = [1, 2, 5, 10, 20]
+    p_values_file = "experiments/table2/p_values.pth"
+
     step1()
     step2(marking_percentages)
     step3(marking_percentages)
     p_values = step4(marking_percentages)
-    p_values_file = "experiments/table2/p_values.pth"
     torch.save(p_values, p_values_file)
     p_values = torch.load(p_values_file)
     step5(marking_percentages, p_values)
