@@ -35,7 +35,10 @@ def do_marking_run(overall_marking_percentage, run_name, augment=True, overwrite
     experiment_directory = os.path.join("experiments/table2", run_name)    
     if os.path.isdir(experiment_directory):
         if not overwrite:
-            raise Exception("Overwrite set to False. Don't want you blowing away all your trained data..")
+            error_message = "Overwrite set to False. By default we assume you don't want to repeat the marking stage." \
+                            " Modify the main to either remove the marking stage or set overwrite=True when calling this function." \
+                            " See the note in main for further information."
+            raise Exception(error_message)
         shutil.rmtree(experiment_directory)
     os.makedirs(experiment_directory)
 
@@ -91,7 +94,10 @@ def do_marking_run_multiclass(overall_marking_percentage, run_name, augment=True
     experiment_directory = os.path.join("experiments/table2", run_name)    
     if os.path.isdir(experiment_directory):
         if not overwrite:
-            raise Exception("Overwrite set to False. Don't want you blowing away all your trained data..")
+            error_message = "Overwrite set to False. By default we assume you don't want to repeat the marking stage." \
+                            " Modify the main to either remove the marking stage or set overwrite=True when calling this function." \
+                            " See the note in main for further information."
+            raise Exception(error_message)
         shutil.rmtree(experiment_directory)
     os.makedirs(experiment_directory)
 
@@ -251,11 +257,21 @@ if __name__ == '__main__':
     marking_percentages = [1, 2, 5, 10, 20]
     p_values_file = "experiments/table2/p_values.pth"
 
-    step1()
+    step1() # Train Marking Network
+
+    # Marking
+    # If you had to stop mid marking check your experiments/table2 directory and delete the largest
+    # x_percent before setting the marking_percentage list with the percentages you haven't marked.
+    # Make sure you set it back to the original list before resuming the rest of the steps.
+    # 
+    # If you have already completed the marking stage, comment it out.
+    # If you want to generate new marking data then the below steps will need to be repeated, delete
+    # the experiments/table2 directory and start again.
     step2(marking_percentages)
-    step3(marking_percentages)
-    p_values = step4(marking_percentages)
+
+    step3(marking_percentages) # Training Target Networks
+    p_values = step4(marking_percentages) # Calculate p-values
     torch.save(p_values, p_values_file)
     p_values = torch.load(p_values_file)
-    step5(marking_percentages, p_values)
+    step5(marking_percentages, p_values) # Generate Table 2
 
