@@ -250,6 +250,7 @@ def step5(marking_percentages, p_values):
                      colColours=colors,
                      colLabels=column_labels,
                      loc='center')
+    plt.savefig("experiments/table2/table2.png")
     plt.show()
 
 
