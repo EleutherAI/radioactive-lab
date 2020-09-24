@@ -266,7 +266,7 @@ if __name__ == '__main__':
     # 
     # If you have already completed the marking stage, comment it out.
     # If you want to generate new marking data then the below steps will need to be repeated, delete
-    # the experiments/table2 directory and start again.
+    # everything in the experiments/table2 directory except step1 and start again.
     step2(marking_percentages)
 
     step3(marking_percentages) # Training Target Networks

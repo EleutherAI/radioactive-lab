@@ -261,7 +261,7 @@ def step5(marking_percentages, p_values):
 
 
 if __name__ == '__main__':
-    marking_percentage = [1, 2, 5, 10, 20]
+    marking_percentages = [1, 2, 5, 10, 20]
     p_values_file = "experiments/table1/p_values.pth"
 
     step1() # Train Marking Network
@@ -273,11 +273,11 @@ if __name__ == '__main__':
     # 
     # If you have already completed the marking stage, comment it out.
     # If you want to generate new marking data then the below steps will need to be repeated, delete
-    # the experiments/table1 directory and start again.
-    step2(marking_percentage)
+    # everything in the experiments/table1 directory except step1 and start again.
+    #step2(marking_percentages)
 
-    step3(marking_percentage) # Training Target Networks
-    p_values = step4(marking_percentage)  # Calculate p-values
+    step3(marking_percentages) # Training Target Networks
+    p_values = step4(marking_percentages)  # Calculate p-values
     torch.save(p_values, p_values_file)
     p_values = torch.load(p_values_file)
-    step5(marking_percentage, p_values) # Generate Table 1
+    step5(marking_percentages, p_values) # Generate Table 1
