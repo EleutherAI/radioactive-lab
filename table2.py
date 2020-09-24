@@ -267,7 +267,7 @@ if __name__ == '__main__':
     # If you have already completed the marking stage, comment it out.
     # If you want to generate new marking data then the below steps will need to be repeated, delete
     # everything in the experiments/table2 directory except step1 and start again.
-    step2(marking_percentages)
+    #step2(marking_percentages)
 
     step3(marking_percentages) # Training Target Networks
     p_values = step4(marking_percentages) # Calculate p-values
