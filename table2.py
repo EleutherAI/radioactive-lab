@@ -196,7 +196,6 @@ def step4(marking_percentages):
     #                                                       marking_network, marking_checkpoint, 
     #                                                       align=False)
     #p_values.append(combined_pval)
-    p_values.append(0)
 
     # The Rest
     for run in marking_percentages:
@@ -232,8 +231,9 @@ def step5(marking_percentages, p_values):
     column_labels = tuple([0] + marking_percentages)
     colors = plt.cm.BuPu(np.linspace(0, 0.5, len(column_labels)))
     row_labels = ["log10(p)", "Top-1 %"]
-    formatted_pvalues = [f"{p:0.4f}" for p in np.log10(p_values)]
-    formatted_pvalues[0] = "n/a"
+    formatted_pvalues = ["n/a"]
+    formatted_pvalues += [f"{p:0.4f}" for p in np.log10(p_values)]    
+
     cell_text = [formatted_pvalues, accuracies]
 
     fig = plt.figure()
