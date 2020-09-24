@@ -123,12 +123,6 @@ def main(carrier_path, marking_network, target_network, target_checkpoint, batch
     # Load Carrier
     carrier = torch.load(carrier_path).numpy()
 
-    marking_network.to(device)
-    marking_network.eval()    
-
-    target_network.to(device)
-    target_network.eval()
-
     t = Timer()
     t.start()
 
@@ -136,6 +130,12 @@ def main(carrier_path, marking_network, target_network, target_checkpoint, batch
     W = target_checkpoint["model_state_dict"]["fc.weight"].cpu().numpy()
     if align:
         logger.info("Aligning marking and target network feature space with least squares")
+
+        marking_network.to(device)
+        marking_network.eval()
+
+        target_network.to(device)
+        target_network.eval()
 
         logger.info("Extracting image features from marking and target networks.")
         features_marking, _ = extract_features(test_set_loader, marking_network, device, verbose=False)

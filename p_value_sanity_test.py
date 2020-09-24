@@ -27,12 +27,9 @@ def sample_and_detect():
 
     p_values = []
 
-    # Load Marking Network and remove fully connected layer
-    marking_network = torchvision.models.resnet18(pretrained=False, num_classes=10)
+    # Load Marking Network Checkpoint
     marking_checkpoint_path = "experiments/table1/step1/checkpoint.pth"
     marking_checkpoint = torch.load(marking_checkpoint_path)
-    marking_network.load_state_dict(marking_checkpoint["model_state_dict"])
-    marking_network.fc = nn.Sequential()
 
     # Perform detection on unmarked network as sanity test
     datas = []
@@ -42,7 +39,7 @@ def sample_and_detect():
         random_carrier_path = "experiments/sanity_test/carriers.pth"
         torch.save(carriers, random_carrier_path)
         
-        data = detect_radioactivity(random_carrier_path, marking_network, marking_network, 
+        data = detect_radioactivity(random_carrier_path, None, None,
                                     marking_checkpoint, align=False)
         datas.append(data)
 
