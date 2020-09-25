@@ -71,7 +71,7 @@ def do_marking_run(class_marking_percentage, run_name, augment=True, overwrite=T
     torch.save(carriers, os.path.join(experiment_directory, "carriers.pth"))
 
     # Run!
-    optimizer = lambda x : torch.optim.Adam(x, lr=0.1)
+    optimizer = lambda x : torch.optim.Adam(x, lr=0.0001)
     epochs = 100
     batch_size = 32
     output_directory = os.path.join(experiment_directory, "marked_images")
@@ -129,7 +129,7 @@ def do_marking_run_multiclass(overall_marking_percentage, run_name, augment=True
     marked_images = []
     for class_id, image_list in image_data.items():
         images, original_indexes = map(list, zip(*image_list))
-        optimizer = lambda x : torch.optim.Adam(x, lr=0.1)
+        optimizer = lambda x : torch.optim.Adam(x, lr=0.0001)
         epochs = 100
         batch_size = 32
         output_directory = os.path.join(experiment_directory, "marked_images")
