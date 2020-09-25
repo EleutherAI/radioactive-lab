@@ -85,7 +85,7 @@ def do_marking_run(class_marking_percentage, run_name, augment=True, overwrite=T
     img_grid = torchvision.utils.make_grid(images_for_tensorboard, nrow=16)
     tensorboard_summary_writer.add_image('marked_images', img_grid)
 
-def do_marking_run_multiclass(overall_marking_percentage, run_name, augment=True, overwrite=False):
+def do_marking_run_multiclass(overall_marking_percentage, run_name, augment=True, overwrite=True):
     # Setup experiment directory
     experiment_directory = os.path.join("experiments/table1", run_name)    
     if os.path.isdir(experiment_directory):
