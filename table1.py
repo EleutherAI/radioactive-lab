@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 5. Generate Table 1. "Center Crop" augmentation makes no sense when using CIFAR10 data so this is skipped.
 """
 
-def do_marking_run(class_marking_percentage, run_name, augment=True, overwrite=False):
+def do_marking_run(class_marking_percentage, run_name, augment=True, overwrite=True):
 
     # Setup experiment directory
     experiment_directory = os.path.join("experiments/table1", run_name)    
@@ -275,7 +275,7 @@ if __name__ == '__main__':
     # If you have already completed the marking stage, comment it out.
     # If you want to generate new marking data then the below steps will need to be repeated, delete
     # everything in the experiments/table1 directory except step1 and start again.
-    #step2(marking_percentages)
+    step2(marking_percentages)
 
     step3(marking_percentages) # Training Target Networks
     p_values = step4(marking_percentages)  # Calculate p-values
