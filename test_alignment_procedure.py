@@ -26,7 +26,7 @@ if __name__ == '__main__':
     print("values_basis2_hat")
     print(values_basis2_hat)
     
-    if np.all_close(M, M_hat, rtol=0.001):
+    if np.allclose(M, M_hat, rtol=0.001):
         print("Alignment works!")
     else:
         print("Out of alignment.")
