@@ -2,8 +2,8 @@
 import numpy as np
 
 if __name__ == '__main__':
-    dimensions = 2
-    examples = 5
+    dimensions = 50
+    examples = 10000
 
     #rng = default_rng()
     values_basis1 = np.random.random((examples, dimensions))
