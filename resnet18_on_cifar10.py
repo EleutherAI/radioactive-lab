@@ -45,6 +45,7 @@ def get_data_loaders(batch_size, num_workers):
 
     normalize_cifar = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010])
     train_transform = transforms.Compose([transforms.RandomCrop(32, padding=4),
+                                          transforms.ColorJitter(),
                                           transforms.RandomHorizontalFlip(),
                                           transforms.ToTensor(),
                                           normalize_cifar])
@@ -113,7 +114,7 @@ def test_model(device, model, test_set_loader, optimizer):
 
 # A simple example of a resnet18 training on CIFAR10 to demonstrate ML training optimization
 def main(experiment_name, optimizer, output_directory_root="experiments/resnet18_on_cifar10",
-         lr_scheduler=None, epochs=150, batch_size=512, num_workers=1):
+         lr_scheduler=None, epochs=60, batch_size=512, num_workers=1):
     
     output_directory = os.path.join(output_directory_root, experiment_name)
     if not os.path.isdir(output_directory):
