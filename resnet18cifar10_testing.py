@@ -81,6 +81,7 @@ def train_model(device, model, train_set_loader, optimizer, memory_check_func):
         targets = targets.to(device, non_blocking=True)
 
         if memory_check_func and i==0:
+            print("hello")
             memory_check_func()
 
         output = model(images)
@@ -111,6 +112,7 @@ def test_model(device, model, test_set_loader, optimizer, memory_check_func):
 
             if memory_check_func and i==0:
                 memory_check_func()
+                print("ok")
 
             outputs = model(images)
 
