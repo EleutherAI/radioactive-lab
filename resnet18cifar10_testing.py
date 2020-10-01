@@ -74,13 +74,13 @@ def train_model(device, model, train_set_loader, optimizer, memory_check_func):
     total = 0
     correct = 0
     total_loss = 0
-    for images, targets in train_set_loader:
+    for i, images, targets in enumerate(train_set_loader):
         total += images.shape[0]
         optimizer.zero_grad()
         images = images.to(device, non_blocking=True)
         targets = targets.to(device, non_blocking=True)
 
-        if memory_check_func:
+        if memory_check_func and i==0:
             memory_check_func()
 
         output = model(images)
@@ -103,13 +103,13 @@ def test_model(device, model, test_set_loader, optimizer, memory_check_func):
     total = 0
     correct = 0
     with torch.no_grad():
-        for images, targets in test_set_loader:
+        for i, images, targets in enumerate(test_set_loader):
             total += images.shape[0]
 
             images = images.to(device, non_blocking=True)
             targets = targets.to(device, non_blocking=True)
 
-            if memory_check_func:
+            if memory_check_func and i==0:
                 memory_check_func()
 
             outputs = model(images)
