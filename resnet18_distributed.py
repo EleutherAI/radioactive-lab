@@ -131,7 +131,7 @@ def main(device, mp_args, experiment_name, optimizer, output_directory_root="exp
          lr_scheduler=None, epochs=60, batch_size=64, num_workers=1):    
 
     global_rank = mp_args.nr * mp_args.gpus + device
-    dist.init_process_group(backend='nccl', init_method='env://', 
+    dist.init_process_group(backend='gloo', init_method='env://', 
                             world_size=mp_args.world_size, rank=global_rank) 
 
     output_directory = os.path.join(output_directory_root, experiment_name, f"rank_{global_rank}")
