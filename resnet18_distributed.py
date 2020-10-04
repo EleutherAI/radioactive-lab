@@ -128,7 +128,7 @@ def test_model(device, model, test_set_loader, optimizer):
 
 # A simple example of a resnet18 training on CIFAR10 to demonstrate ML training optimization
 def main(device, mp_args, experiment_name, optimizer, output_directory_root="experiments/resnet18_on_cifar10",
-         lr_scheduler=None, epochs=60, batch_size=64, num_workers=1):    
+         lr_scheduler=None, epochs=60, batch_size=512, num_workers=1):    
 
     global_rank = mp_args.nr * mp_args.gpus + device
     dist.init_process_group(backend='nccl', init_method='env://', 
