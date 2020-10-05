@@ -84,6 +84,7 @@ def get_data_loaders(world_size, rank, batch_size, num_workers):
     return train_set_loader, test_set_loader
 
 def train_model(device, model, train_set_loader, optimizer):
+    timer = Timer().start()
     model.train() # For special layers
     total = 0
     correct = 0
@@ -105,10 +106,12 @@ def train_model(device, model, train_set_loader, optimizer):
 
     average_train_loss = total_loss / total
     accuracy = 100. * correct.item()/total
+    logger.info(f"Training Took {timer.stop():0.2f}s. Images in epoch: {total} ")
 
     return average_train_loss, accuracy
 
 def test_model(device, model, test_set_loader, optimizer):
+    timer = Timer().start()
     model.eval() # For special layers
     total = 0
     correct = 0
@@ -124,11 +127,13 @@ def test_model(device, model, test_set_loader, optimizer):
             correct += predicted.eq(targets.data).cpu().sum()
 
     accuracy = 100. * correct.item()/total
+    logger.info(f"Testing Took {timer.stop():0.2f}s. Images in epoch: {total}")
+
     return accuracy
 
 # A simple example of a resnet18 training on CIFAR10 to demonstrate ML training optimization
 def main(device, mp_args, experiment_name, optimizer, output_directory_root="experiments/resnet18_on_cifar10",
-         lr_scheduler=None, epochs=60, batch_size=512, num_workers=1):    
+         lr_scheduler=None, epochs=150, batch_size=512, num_workers=1):    
 
     global_rank = mp_args.nr * mp_args.gpus + device
     dist.init_process_group(backend='nccl', init_method='env://', 

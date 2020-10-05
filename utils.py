@@ -18,6 +18,8 @@ class Timer:
 
         self._start_time = time.perf_counter()
 
+        return self
+
     def stop(self):
         """Stop the timer, and report the elapsed time"""
         if self._start_time is None:
@@ -26,3 +28,7 @@ class Timer:
         elapsed_time = time.perf_counter() - self._start_time
         self._start_time = None
         return elapsed_time
+
+    def stop_string(self):
+        elapsed = self.stop()
+        return f"Took {elapsed:0.2f}s"
