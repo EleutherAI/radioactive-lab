@@ -15,11 +15,12 @@ import torchvision.transforms.transforms as transforms
 import random
 import logging
 import glob
+import tqdm
 
 from torch.utils.tensorboard import SummaryWriter
 
 from utils import NORMALIZE_CIFAR
-from differentiable_augmentations import RandomResizedCropFlip
+import differentiable_augmentations
 from logger import setup_logger
 
 # Get an unconfigured logger, will propagate to root we configure in main program
@@ -61,14 +62,14 @@ def project_linf(x, y, radius, std):
     return y + delta
 
 
-def psnr(delta):
+def get_psnr(delta):
     return 20 * np.log10(255) - 10 * np.log10(np.mean(delta**2))
 
 
 # Supports one class at a time - just run multiple times
 def main(output_directory, marking_network, images, original_indexes, carriers, class_id,
          optimizer_fn, tensorboard_log_directory_base, batch_size=32, epochs=90, lambda_1=0.0005, lambda_2=0.01, 
-         angle=None, half_cone=True, radius=10, overwrite=False, augment=True):
+         angle=None, half_cone=True, radius=10, overwrite=False, augmentation=None):
 
     if os.path.isdir(output_directory) and overwrite:
         shutil.rmtree(output_directory)
@@ -109,11 +110,6 @@ def main(output_directory, marking_network, images, original_indexes, carriers, 
     img_orig = images
     img = [x.clone() for x in img_orig]
 
-    # Load differentiable data augmentations, allowing gradients to backprop
-    #center_da = CenterCrop(scaled_image_size, crop_size) # Unused for CIFAR10
-    #random_da = RandomResizedCropFlip(crop_size)
-    data_augmentation = RandomResizedCropFlip(28) # Crop from 32 to 28
-
     # Turn on backpropagation for the images to allow marking
     logger.info(f"Enabling gradient on the images")
     for i in range(len(img)):
@@ -135,31 +131,37 @@ def main(output_directory, marking_network, images, original_indexes, carriers, 
         # Setup optimizer on images
         optimizer = optimizer_fn(img_slice)
 
-        # Get original features - Facebook code had differentiable rescale we don't need for CIFAR10
-        logger.info("Getting original features")
-        img_orig_slice_tensor = torch.cat(img_orig_slice, dim=0).to(device)        
-        ft_orig = marking_network(img_orig_slice_tensor).detach() # Remove from graph
+        # Get original features
+        logger.info("Getting original features")        
+        if augmentation:
+            # Center crop required here - for imagenette
+            center_da = differentiable_augmentations.CenterCrop(256, 224)
+            img_center = torch.cat([center_da(x, 0).cuda(non_blocking=True) for x in img_orig_slice], dim=0)
+            ft_orig = marking_network(img_center).detach()
+        else:
+            # CIFAR10
+            img_orig_slice_tensor = torch.cat(img_orig_slice, dim=0).to(device)        
+            ft_orig = marking_network(img_orig_slice_tensor).detach() # Remove from graph
 
         #if params.angle is not None:
         #    ft_orig = torch.load("/checkpoint/asablayrolles/radioactive_data/imagenet_ckpt_2/features/valid_resnet18_center.pth").cuda()
 
-        tensorboard_log_directory = f"{tensorboard_log_directory_base}_batch{batch_number}"
+        tensorboard_log_directory = os.path.join(f"{tensorboard_log_directory_base}", f"batch{batch_number}")
         tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)
 
-        for iteration in range(epochs):
-            # Differentially augment images
-            logger.info("Augmenting images")
+        for iteration in tqdm.tqdm(range(epochs)):
             batch = []
             for x in img_slice:
-                if augment:
-                    aug_params = data_augmentation.sample_params(x)
-                    aug_img = data_augmentation(x, aug_params)
+                if augmentation:
+                    # Differentiable augment
+                    aug_params = augmentation.sample_params(x)
+                    aug_img = augmentation(x, aug_params)
                     batch.append(aug_img)
                 else:
                     batch.append(x)
             batch = torch.cat(batch).to(device)
 
-            # Forward augmented images
+            # Forward images
             ft = marking_network(batch)
 
             # Loss - See section 3.3 in the paper. 
@@ -199,11 +201,10 @@ def main(output_directory, marking_network, images, original_indexes, carriers, 
             tensorboard_summary_writer.add_scalar("image_diff_loss", loss_norm.item(), iteration)
             tensorboard_summary_writer.add_scalar("feature_diff_loss", loss_ft_l2.item(), iteration)
 
-
             #if angle is not None:
             #    logs["R"] = - (loss_ft + loss_ft_l2).item()
 
-            logger.info("__log__:%s" % json.dumps(logs))
+            #logger.info("__log__:%s" % json.dumps(logs))
 
             for i in range(len(img_slice)):
                 img_slice[i].data[0] = project_linf(img_slice[i].data[0], img_orig_slice[i][0], radius, std)
@@ -213,18 +214,24 @@ def main(output_directory, marking_network, images, original_indexes, carriers, 
         img_new = [numpy_pixel(x.data[0], mean, std).astype(np.float32) for x in img_slice]
         img_old = [numpy_pixel(x[0], mean, std).astype(np.float32) for x in img_orig_slice]
 
-        img_totest = torch.cat(img_slice).to(device)
+        if augmentation:
+            img_totest = torch.cat([center_da(x, 0).cuda(non_blocking=True) for x in img_slice], dim=0).to(device)
+        else:
+            img_totest = torch.cat(img_slice).to(device)
+
         with torch.no_grad():
             ft_new = marking_network(img_totest)
 
-        logger.info("__log__:%s" % json.dumps({
-            "keyword": "final",
-            "psnr": np.mean([psnr(x_new - x_old) for x_new, x_old in zip(img_new, img_old)]),
-            "ft_direction": torch.mv(ft_new - ft_orig, direction[0]).mean().item(),
-            "ft_norm": torch.norm(ft_new - ft_orig, dim=1).mean().item(),
-            "rho": rho,
-            "R": (rho * torch.dot(ft_new[0] - ft_orig[0], direction[0])**2 - torch.norm(ft_new - ft_orig)**2).item(),
-        }))
+        # Batch Summary Info
+        psnr = np.mean([get_psnr(x_new - x_old) for x_new, x_old in zip(img_new, img_old)])
+        ft_direction = torch.mv(ft_new - ft_orig, direction[0]).mean().item()
+        ft_norm = torch.norm(ft_new - ft_orig, dim=1).mean().item()
+        R = (rho * torch.dot(ft_new[0] - ft_orig[0], direction[0])**2 - torch.norm(ft_new - ft_orig)**2).item()
+        logger.info(f"psnr: {psnr}")
+        logger.info(f"ft_direction: {ft_direction}")
+        logger.info(f"ft_norm: {ft_norm}")
+        logger.info(f"rho: {rho}")
+        logger.info(f"R: {R}")
 
         for i, img_to_save in enumerate(img_new):
             img_to_save = img_to_save.astype(np.uint8)
@@ -291,10 +298,11 @@ def get_images_for_marking_multiclass(training_set, tensorboard_log_directory, o
     tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)
     images = []
     for class_id, image_list in image_data.items():
-        _, original_indexes = zip(*image_list)
-        original_indexes = list(original_indexes)
-        for index in original_indexes:
-            images.append(transforms.ToTensor()(training_set.data[index]))
+        if image_list:
+            _, original_indexes = zip(*image_list)
+            original_indexes = list(original_indexes)
+            for index in original_indexes:
+                images.append(transforms.ToTensor()(training_set.data[index]))
     img_grid = torchvision.utils.make_grid(images, nrow=16)
     tensorboard_summary_writer.add_image('images_for_marking', img_grid)
 
@@ -333,7 +341,7 @@ if __name__ == '__main__':
 
     # Run!
     #optimizer = lambda x : torch.optim.SGD(x, lr=1) # Doesn't produce good loss
-    optimizer = lambda x : torch.optim.Adam(x, lr=0.1)
+    optimizer = lambda x : torch.optim.AdamW(x, lr=0.1)
     epochs = 100
     batch_size = 32
     output_directory = os.path.join(experiment_directory, "marked_images")

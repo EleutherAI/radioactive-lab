@@ -2,3 +2,4 @@ future
 tensorboard
 jupyter
 matplotlib
+cutie

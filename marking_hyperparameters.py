@@ -14,7 +14,6 @@ import logging
 from logger import setup_logger
 logger = logging.getLogger(__name__)
 
-
 def do_marking_run_multiclass(overall_marking_percentage, experiment_name, 
                               learning_rate=0.1, epochs=100, augment=True, overwrite=False):
     # Setup experiment directory
@@ -58,16 +57,17 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_name,
 
     marked_images = []
     for class_id, image_list in image_data.items():
-        images, original_indexes = map(list, zip(*image_list))
-        optimizer = lambda x : torch.optim.Adam(x, lr=learning_rate)        
-        batch_size = 32
-        output_directory = os.path.join(experiment_directory, "marked_images")
-        tensorboard_log_directory = f"{tensorboard_log_directory_base}_class{class_id}"
-        marked_images_temp = do_marking(output_directory, marking_network, images, original_indexes, carriers, 
-                                        class_id, optimizer, tensorboard_log_directory, epochs=epochs, 
-                                        batch_size=batch_size, overwrite=False, augment=augment)
+        if image_list:
+            images, original_indexes = map(list, zip(*image_list))
+            optimizer = lambda x : torch.optim.Adam(x, lr=learning_rate)        
+            batch_size = 32
+            output_directory = os.path.join(experiment_directory, "marked_images")
+            tensorboard_log_directory = f"{tensorboard_log_directory_base}_class{class_id}"
+            marked_images_temp = do_marking(output_directory, marking_network, images, original_indexes, carriers, 
+                                            class_id, optimizer, tensorboard_log_directory, epochs=epochs, 
+                                            batch_size=batch_size, overwrite=False, augment=augment)
             
-        marked_images =  marked_images + marked_images_temp   
+            marked_images =  marked_images + marked_images_temp   
 
     # Show marked images in Tensorboard
     tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory_base)

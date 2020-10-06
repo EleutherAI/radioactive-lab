@@ -1,107 +1,81 @@
+import os
+import numpy as np
+
 import torchvision
 import torchvision.transforms.transforms as transforms
 import torch
-import logging
 from torch.nn import functional as F
-import os
-import re
-import shutil
+
 from utils import Timer
 from torch.utils.tensorboard import SummaryWriter
-import numpy as np
+from matplotlib import pyplot as plt
 
-from dataset_wrappers import MergedDataset
-from utils import NORMALIZE_CIFAR
-
+import logging
 from logger import setup_logger
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 
-# Datasets use pickle, so we can't just pass in a lambda
-def numpy_loader(x):
-    return transforms.ToPILImage()(np.load(x))
+import tqdm
 
-def get_data_loaders_cifar10(marked_images_directory, augment, batch_size=512, num_workers=1):
+normalize_imagenette = transforms.Normalize(mean=[0.4618, 0.4571, 0.4288], std=[0.2531, 0.2472, 0.2564])
 
-    cifar10_dataset_root = "experiments/datasets" # Will download here
+def get_mean_and_std(train_images_path, test_images_path):
 
-    # Base Training Set
-    base_train_set = torchvision.datasets.CIFAR10(cifar10_dataset_root, download=True)
-
-    # Load marked data from Numpy img format - no transforms
-    extensions = ("npy")
-    marked_images = torchvision.datasets.DatasetFolder(marked_images_directory, numpy_loader, extensions=extensions)
-
-    # Setup Merged Training Set: Vanilla -> Merged <- Marked
-    # MergedDataset allows you to replace certain examples with marked alternatives
-    merge_to_vanilla = [None] * len(marked_images)
-    for i, (path, target) in enumerate(marked_images.samples):
-        img_id = re.search('[0-9]+', os.path.basename(path))
-        merge_to_vanilla[i] = int(img_id[0])
-
-    merged_train_set = MergedDataset(base_train_set, marked_images, merge_to_vanilla)
-
-    # Add Transform and Get Training set dataloader
-    transforms_list = []
-    if augment:
-        transforms_list += [transforms.RandomCrop(32, padding=4),
-                            transforms.RandomHorizontalFlip()]
-    
-    transforms_list += [transforms.ToTensor(), NORMALIZE_CIFAR]
-    
-    train_transform = transforms.Compose(transforms_list)
-    merged_train_set.transform = train_transform
-
-    train_set_loader = torch.utils.data.DataLoader(merged_train_set,
-                                                   batch_size=batch_size,
-                                                   num_workers=num_workers,
-                                                   shuffle=True,
+    train_set = torchvision.datasets.ImageFolder(train_images_path, transform=transforms.ToTensor())
+    train_set_loader = torch.utils.data.DataLoader(train_set,
+                                                   batch_size=1,
+                                                   shuffle=False,
                                                    pin_memory=True)
 
-    # Test Set (Simple)
-    test_transform = transforms.Compose([transforms.ToTensor(), NORMALIZE_CIFAR])
-    test_set = torchvision.datasets.CIFAR10(cifar10_dataset_root, train=False, transform=test_transform)
+    test_set = torchvision.datasets.ImageFolder(test_images_path, transform=transforms.ToTensor())
     test_set_loader = torch.utils.data.DataLoader(test_set, 
-                                                  batch_size=batch_size, 
-                                                  num_workers=num_workers, 
+                                                  batch_size=1, 
                                                   shuffle=False,
                                                   pin_memory=True)
 
-    return train_set_loader, test_set_loader
+    image_count = 0
+    mean = 0.
+    var = 0.
+    for batch, _ in tqdm.tqdm(train_set_loader):
+        # Rearrange batch to be the shape of [B, C, W * H]
+        batch = batch.view(batch.size(0), batch.size(1), -1)
 
-def get_data_loaders_imagenette(train_images_path, test_images_path, marked_images_directory, batch_size=16, num_workers=1):
+        # Update total number of images
+        image_count += batch.size(0)
 
-    normalize_imagenette = transforms.Normalize(mean=[0.4618, 0.4571, 0.4288], std=[0.2531, 0.2472, 0.2564])
+        # Compute mean and std here
+        mean += batch.mean(2).sum(0) 
+        var += batch.var(2).sum(0) 
 
-    # Base Training Set
-    base_train_set = torchvision.datasets.ImageFolder(train_images_path)
+    for batch, _ in tqdm.tqdm(test_set_loader):
+        batch = batch.view(batch.size(0), batch.size(1), -1)
+        image_count += batch.size(0)
+        mean += batch.mean(2).sum(0) 
+        var += batch.var(2).sum(0) 
 
-    # Load marked data from Numpy img format - no transforms
-    extensions = ("npy")
-    marked_images = torchvision.datasets.DatasetFolder(marked_images_directory, numpy_loader, extensions=extensions)
+    # Final step
+    mean /= image_count
+    var /= image_count
+    std = torch.sqrt(var)
 
-    # Setup Merged Training Set: Vanilla -> Merged <- Marked
-    # MergedDataset allows you to replace certain examples with marked alternatives
-    merge_to_vanilla = [None] * len(marked_images)
-    for i, (path, target) in enumerate(marked_images.samples):
-        img_id = re.search('[0-9]+', os.path.basename(path))
-        merge_to_vanilla[i] = int(img_id[0])
+    print(mean)
+    print(std)
 
-    merged_train_set = MergedDataset(base_train_set, marked_images, merge_to_vanilla)
-
-    # Add Transform and Get Training set dataloader
+def get_data_loaders(batch_size, num_workers, train_images_path, test_images_path):
+    # Train
     train_transform = transforms.Compose([transforms.RandomCrop(256, pad_if_needed=True),
                                           transforms.ColorJitter(),
                                           transforms.RandomHorizontalFlip(),
                                           transforms.ToTensor(),
-                                          normalize_imagenette])    
+                                          normalize_imagenette])
 
-    merged_train_set.transform = train_transform
+    train_set = torchvision.datasets.ImageFolder(train_images_path, transform=train_transform)
 
-    train_set_loader = torch.utils.data.DataLoader(merged_train_set,
+    train_set_loader = torch.utils.data.DataLoader(train_set,
                                                    batch_size=batch_size,
                                                    num_workers=num_workers,
                                                    shuffle=True,
                                                    pin_memory=True)
+
 
     # Test
     test_transform = transforms.Compose([transforms.CenterCrop(256),
@@ -121,7 +95,7 @@ def train_model(device, model, train_set_loader, optimizer):
     total = 0
     correct = 0
     total_loss = 0
-    for images, targets in train_set_loader:
+    for images, targets in tqdm.tqdm(train_set_loader, desc="Training"):
         total += images.shape[0]
         optimizer.zero_grad()
         images = images.to(device, non_blocking=True)
@@ -131,13 +105,12 @@ def train_model(device, model, train_set_loader, optimizer):
         total_loss += torch.sum(loss)
         loss.backward()
         optimizer.step()
-        # logger.info(f"Batch Loss: {loss}")
 
         _, predicted = torch.max(output.data, 1)
         correct += predicted.eq(targets.data).cpu().sum()
 
     average_train_loss = total_loss / total
-    accuracy = 100. * correct.item() / total
+    accuracy = 100. * correct.item()/total
 
     return average_train_loss, accuracy
 
@@ -146,7 +119,7 @@ def test_model(device, model, test_set_loader, optimizer):
     total = 0
     correct = 0
     with torch.no_grad():
-        for images, targets in test_set_loader:
+        for images, targets in tqdm.tqdm(test_set_loader, desc="Testing"):
             total += images.shape[0]
 
             images = images.to(device, non_blocking=True)
@@ -156,21 +129,16 @@ def test_model(device, model, test_set_loader, optimizer):
             _, predicted = torch.max(outputs.data, 1)
             correct += predicted.eq(targets.data).cpu().sum()
 
-    accuracy = 100. * correct.item() / total
+    accuracy = 100. * correct.item()/total
     return accuracy
 
+def main(optimizer, train_images_path, test_images_path, 
+         output_directory, tensorboard_log_directory,
+         lr_scheduler=None, epochs=60, batch_size=16, num_workers=1, test=True): 
 
-def main(dataloader_func, model, optimizer_callback, output_directory, tensorboard_log_directory, 
-         lr_scheduler=None, epochs=150):
-
-    if not os.path.isdir(output_directory):
-        os.makedirs(output_directory, exist_ok=True)
-
-    # Setup regular log file
+    # Setup log file + tensorboard
     logfile_path = os.path.join(output_directory, "logfile.txt")
     setup_logger(logfile_path)
-
-    # Setup TensorBoard logging
     tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)
 
     # Choose Training Device
@@ -178,17 +146,21 @@ def main(dataloader_func, model, optimizer_callback, output_directory, tensorboa
     logger.info(f"CUDA Available? {use_cuda}")
     device = "cuda" if use_cuda else "cpu"   
 
-    # Dataloaders
-    train_set_loader, test_set_loader = dataloader_func()
+    # Datasets and Loaders
+    train_set_loader, test_set_loader = get_data_loaders(batch_size, num_workers,
+                                                         train_images_path, test_images_path)
 
-    # Model & Optimizer
+    # Create Model & Optimizer (uses Partial Functions)
+    model = torchvision.models.resnet18(pretrained=False, num_classes=10)
     model.to(device)
-    optimizer = optimizer_callback(model)
+    optimizer = optimizer(model.parameters())
+
     if lr_scheduler:
         lr_scheduler = lr_scheduler(optimizer)
 
     logger.info("=========== Commencing Training ===========")
     logger.info(f"Epoch Count: {epochs}")
+    logger.info(f"Batch Size: {batch_size}")
 
     # Load Checkpoint
     checkpoint_file_path = os.path.join(output_directory, "checkpoint.pth")
@@ -219,14 +191,15 @@ def main(dataloader_func, model, optimizer_callback, output_directory, tensorboa
         logger.info(f"Epoch {epoch}")
         logger.info("-" * 10)
 
-        # Train
         train_loss, train_accuracy = train_model(device, model, train_set_loader, optimizer)
         tensorboard_summary_writer.add_scalar("train_loss", train_loss, epoch)
         tensorboard_summary_writer.add_scalar("train_accuracy", train_accuracy, epoch)
         
-        # Test
-        test_accuracy = test_model(device, model, test_set_loader, optimizer)
-        tensorboard_summary_writer.add_scalar("test_accuracy", test_accuracy, epoch)
+        if test:
+            test_accuracy = test_model(device, model, test_set_loader, optimizer)
+            tensorboard_summary_writer.add_scalar("test_accuracy", test_accuracy, epoch)
+        else:
+            test_accuracy = "N/A"
 
         scheduler_dict = None
         if lr_scheduler:
@@ -252,21 +225,51 @@ def main(dataloader_func, model, optimizer_callback, output_directory, tensorboa
         logger.info(f"Top-1 Test Accuracy: {test_accuracy}")
         logger.info("")
 
-from functools import partial
+# Starts off slow at batch size 8, maxes out on 980 ti around 18 seconds per batch
+# Exploded after 552 batch size - setting to 512
+def batch_size_linear_search(train_images_path, test_images_path):
+    min = 8
+    max = 64
+    step_size = 2
+
+    optimizer = lambda x : torch.optim.SGD(x, lr=0.1)
+    experiment_name = "batch_size_linear_search"
+    t = Timer()
+
+    batch_size_times = {}
+    for i, batch_size in enumerate(range(min, max, step_size)):
+        t.start()
+        main(experiment_name, optimizer, train_images_path, test_images_path, epochs=i+2, batch_size=batch_size, test=False)
+        elapsed_time = t.stop()
+        batch_size_times[batch_size] = elapsed_time
+
+    pickle.dump(batch_size_times, open("batch_size_times.pickle","wb"))
+
+    # Plot
+    batch_sizes = []
+    times = []
+    for k in sorted(batch_size_times):
+        batch_sizes.append(k)
+        times.append(batch_size_times[k])
+
+    plt.plot(np.array(batch_sizes), np.array(times))
+    plt.xlabel("Batch Size")
+    plt.ylabel("Epoch Time")
+    plt.title("Batch Size vs Epoch Time")
+    plt.show()
 
 if __name__ == '__main__':
-    """
-    Basic Example
-    You will need to blow away the TensorBoard logs and checkpoint file if you want
-    to train from scratch a second time.
-    """
-    marked_images_directory = "experiments/radioactive/marked_images"
-    output_directory="experiments/radioactive/train_marked_classifier"
-    tensorboard_log_directory="runs/train_marked_classifier"
-    optimizer = lambda model : torch.optim.AdamW(model.parameters())
-    epochs = 60
-    dataloader_func = partial(get_data_loaders_cifar10, marked_images_directory, False)
-    model = torchvision.models.resnet18(pretrained=False, num_classes=10)
+    train_images_path = "E:/imagenette2/train"
+    test_images_path = "E:/imagenette2/val"
 
-    main(dataloader_func, model, optimizer, output_directory, tensorboard_log_directory,
+    #batch_size_linear_search(train_images_path, test_images_path)
+
+    experiment_name = "adamw_default"
+    optimizer = lambda x : torch.optim.AdamW(x)
+    epochs = 150
+    output_directory = os.path.join("experiments", "resnet18_imagenette", experiment_name)
+    tensorboard_log_directory = os.path.join("runs", "resnet18_imagenette", experiment_name)
+    main(optimizer, train_images_path, test_images_path, output_directory, tensorboard_log_directory,
          epochs=epochs)
+
+    #get_mean_and_std(train_images_path, test_images_path)
