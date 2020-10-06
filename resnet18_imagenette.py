@@ -136,7 +136,7 @@ def main(optimizer, train_images_path, test_images_path,
          output_directory, tensorboard_log_directory,
          lr_scheduler=None, epochs=60, batch_size=16, num_workers=1, test=True): 
 
-    os.makedirs(output_directory)
+    os.makedirs(output_directory, exist_ok=True)
 
     # Setup log file + tensorboard
     logfile_path = os.path.join(output_directory, "logfile.txt")
