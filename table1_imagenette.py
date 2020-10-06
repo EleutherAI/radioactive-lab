@@ -13,6 +13,7 @@ import os
 import glob
 import shutil
 from functools import partial
+import argparse
 
 import torch
 import torchvision
@@ -182,12 +183,10 @@ def generate_table_1(marking_percentages, p_values, marking_checkpoint_path):
     plt.savefig("experiments/table1/table1.png")
     plt.show()
 
-import sys
-
-if __name__ == '__main__':
+def main(imagenette_path):
     marking_percentages = [1, 2, 5, 10, 20]
-    train_images_path = "E:/imagenette2/train"
-    test_images_path = "E:/imagenette2/val"
+    train_images_path = os.path.join(imagenette_path, "train")
+    test_images_path = os.path.join(imagenette_path, "val")
     p_values_file = "experiments/table1_imagenette/p_values.pth"
 
     # Step 1 - Train Marking Network
@@ -249,3 +248,12 @@ if __name__ == '__main__':
 
     # Step 5 - Generate Table 1
     generate_table_1(marking_percentages, p_values, checkpoint_path)
+
+parser_description = 'Peform experiments and generate table 1 for imagenette.'
+parser = argparse.ArgumentParser(description=parser_description)
+parser.add_argument("-dir", "--imagenette_path", default="E:/imagenette2/")
+
+if __name__ == '__main__':
+    args = parser.parse_args()
+    main(args.imagenette_path)
+
