@@ -190,8 +190,6 @@ if __name__ == '__main__':
     test_images_path = "E:/imagenette2/val"
     p_values_file = "experiments/table1_imagenette/p_values.pth"
 
-    marking_percentages = [0.1, 0.2, 0.3]
-
     # Step 1 - Train Marking Network
     optimizer = lambda x : torch.optim.AdamW(x)
     epochs = 150

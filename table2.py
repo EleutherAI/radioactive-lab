@@ -236,7 +236,6 @@ def generate_table_2(marking_percentages, p_values):
 
 if __name__ == '__main__':
     marking_percentages = [1, 2, 5, 10, 20]
-    marking_percentages = [1]
     p_values_file = "experiments/table2/p_values.pth"
 
     # Step 1 - Train Marking Network
