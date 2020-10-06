@@ -191,7 +191,7 @@ def main(imagenette_path):
 
     # Step 1 - Train Marking Network
     optimizer = lambda x : torch.optim.AdamW(x)
-    epochs = 150
+    epochs = 100
     output_directory = os.path.join("experiments", "table1_imagenette", "marking_network")
     checkpoint_path = os.path.join(output_directory, "checkpoint.pth") # Used later
     tensorboard_log_directory = os.path.join("runs", "table1_imagenette", "marking_network")
