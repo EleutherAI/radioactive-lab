@@ -32,7 +32,7 @@ from detect_radioactivity import main as detect_radioactivity
 import differentiable_augmentations
 
 import logging
-from logger import setup_logger
+from logger import setup_logger_tqdm
 logger = logging.getLogger(__name__)
 
 def get_images_for_marking_multiclass(training_set, tensorboard_log_directory, overall_marking_percentage):
@@ -77,7 +77,7 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, 
     os.makedirs(experiment_directory)
 
     logfile_path = os.path.join(experiment_directory, 'marking.log')
-    setup_logger(filepath=logfile_path)
+    setup_logger_tqdm(filepath=logfile_path)
 
     # Carriers
     marking_network_fc_feature_size = 512
@@ -96,12 +96,13 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, 
         if image_list:
             images, original_indexes = map(list, zip(*image_list))
             optimizer = lambda x : torch.optim.AdamW(x)
-            epochs = 100
+            epochs = 250
             batch_size = 8
             output_directory = os.path.join(experiment_directory, "marked_images")
             augmentation = differentiable_augmentations.CenterCrop(256, 224)
+            tensorboard_class_log = os.path.join(tensorboard_log_directory, f"class_{class_id}")
             marked_images_temp = do_marking(output_directory, marking_network, images, original_indexes, carriers, 
-                                            class_id, optimizer, tensorboard_log_directory, epochs=epochs, 
+                                            class_id, optimizer, tensorboard_class_log, epochs=epochs, 
                                             batch_size=batch_size, overwrite=False, augmentation=augmentation)
             
             marked_images =  marked_images + marked_images_temp   
@@ -118,9 +119,9 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, 
     with open(os.path.join(experiment_directory, "marking.complete"),"w") as fh:
         fh.write("1")
 
-def calculate_p_values(marking_percentages, marking_checkpoint_path):
-    logfile_path = f"experiments/table1/detect_radioactivity.log"
-    setup_logger(logfile_path)
+def calculate_p_values(marking_percentages, marking_checkpoint_path, table_number, align):
+    logfile_path = f"experiments/table{table_number}_imagenette/detect_radioactivity.log"
+    setup_logger_tqdm(logfile_path)
 
     p_values = []
 
@@ -130,21 +131,19 @@ def calculate_p_values(marking_percentages, marking_checkpoint_path):
     marking_network.load_state_dict(marking_checkpoint["model_state_dict"])
     marking_network.fc = nn.Sequential()
 
-    # The Rest
     for run in marking_percentages:
         run_name = f"{run}_percent"
         carrier_path = f"experiments/table1_imagenette/{run_name}/carriers.pth"
 
         target_network = torchvision.models.resnet18(pretrained=False, num_classes=10)
-        target_checkpoint_path = f"experiments/table1_imagenette/{run_name}/marked_classifier/checkpoint.pth"
+        target_checkpoint_path = f"experiments/table{table_number}_imagenette/{run_name}/marked_classifier/checkpoint.pth"
         target_checkpoint = torch.load(target_checkpoint_path)
         target_network.load_state_dict(target_checkpoint["model_state_dict"])
         target_network.fc = nn.Sequential()
-
-        # No need to align when only retraining the logistic regression
+  
         (scores, p_vals, combined_pval) = detect_radioactivity(carrier_path, marking_network, 
                                                                target_network, target_checkpoint,
-                                                               align=False)
+                                                               align=align)
         p_values.append(combined_pval)
 
     return p_values
@@ -180,18 +179,59 @@ def generate_table_1(marking_percentages, p_values, marking_checkpoint_path):
                      colColours=colors,
                      colLabels=column_labels,
                      loc='center')
-    plt.savefig("experiments/table1/table1.png")
+    plt.savefig("experiments/table1_imagenette/table1.png")
     plt.show()
 
-def main(imagenette_path):
+def generate_table_2(marking_percentages, p_values, marking_checkpoint_path):
+    # Get Vanilla Accuracy
+    vanilla_checkpoint = torch.load(marking_checkpoint_path)
+
+    # The Rest
+    accuracies = [vanilla_checkpoint["test_accuracy"]]
+    for run in marking_percentages:
+        run_name = f"{run}_percent"
+        target_checkpoint_path = f"experiments/table2_imagenette/{run_name}/marked_classifier/checkpoint.pth"
+        target_checkpoint = torch.load(target_checkpoint_path)
+        accuracies.append(target_checkpoint["test_accuracy"])
+
+    formatted_accuracies = list(map(lambda x: f"{float(x):0.2f}", accuracies))
+
+    # Create the table!
+    column_labels = tuple([0] + marking_percentages)
+    colors = plt.cm.BuPu(np.linspace(0, 0.5, len(column_labels)))
+    row_labels = ["log10(p)", "Top-1 %"]
+    formatted_pvalues = ["n/a"]
+    formatted_pvalues += [f"{p:0.4f}" for p in np.log10(p_values)]
+
+    cell_text = [formatted_pvalues, formatted_accuracies]
+
+    fig = plt.figure()
+    ax = fig.add_subplot(1,1,1)
+    ax.axis('off')
+    table = ax.table(cellText=cell_text,
+                     rowLabels=row_labels,
+                     colColours=colors,
+                     colLabels=column_labels,
+                     loc='center')
+    plt.savefig("experiments/table2_imagenette/table2.png")
+    plt.show()
+
+
+def table_1_work(imagenette_path):
+    logger.info("Table 1 Preparation Commecing")
+    logger.info("=============================")
     marking_percentages = [1, 2, 5, 10, 20]
+    marking_percentages = [0.1]
+
     train_images_path = os.path.join(imagenette_path, "train")
     test_images_path = os.path.join(imagenette_path, "val")
     p_values_file = "experiments/table1_imagenette/p_values.pth"
 
-    # Step 1 - Train Marking Network
+    logger.info("")
+    logger.info("Step 1 - Train Marking Network")
+    logger.info("------------------------------")
     optimizer = lambda x : torch.optim.AdamW(x)
-    epochs = 100
+    epochs = 60
     output_directory = os.path.join("experiments", "table1_imagenette", "marking_network")
     checkpoint_path = os.path.join(output_directory, "checkpoint.pth") # Used later
     tensorboard_log_directory = os.path.join("runs", "table1_imagenette", "marking_network")
@@ -201,7 +241,9 @@ def main(imagenette_path):
     marking_network_checkpoint = torch.load(checkpoint_path)
     marking_network.load_state_dict(marking_network_checkpoint["model_state_dict"])
 
-    # Step 2 - Marking
+    logger.info("")
+    logger.info("Step 2 - Image Marking")
+    logger.info("----------------------")
     training_set = torchvision.datasets.ImageFolder(train_images_path)
     for marking_percentage in marking_percentages:
         experiment_directory = os.path.join("experiments", "table1_imagenette", f"{marking_percentage}_percent")
@@ -217,7 +259,9 @@ def main(imagenette_path):
         do_marking_run_multiclass(marking_percentage, experiment_directory, tensorboard_log_directory,
                                   marking_network, training_set)
 
-    # Step 3 - Training Target Network
+    logger.info("")
+    logger.info("Step 3 - Training Target Networks")
+    logger.info("---------------------------------")
     for marking_percentage in marking_percentages:
         marked_images_directory = os.path.join("experiments", "table1_imagenette", f"{marking_percentage}_percent", "marked_images")
         output_directory = os.path.join("experiments", "table1_imagenette", f"{marking_percentage}_percent", "marked_classifier")
@@ -241,15 +285,101 @@ def main(imagenette_path):
         train_marked_classifier.main(dataloader_func, model, optimizer, output_directory, tensorboard_log_directory, 
                                      epochs=epochs)
 
-    # Step 4 - Calculate p-values
-    p_values = calculate_p_values(marking_percentages, checkpoint_path)  
+    logger.info("")
+    logger.info("Step 4 - Calculating p-values")
+    logger.info("-----------------------------")
+    p_values = calculate_p_values(marking_percentages, checkpoint_path, 1, False)  
     torch.save(p_values, p_values_file)
     p_values = torch.load(p_values_file)
 
-    # Step 5 - Generate Table 1
+    logger.info("")
+    logger.info("Step 5 - Generating Table 1")
+    logger.info("---------------------------")
     generate_table_1(marking_percentages, p_values, checkpoint_path)
 
-parser_description = 'Peform experiments and generate table 1 for imagenette.'
+
+def table_2_work(imagenette_path):
+    logger.info("")
+    logger.info("Table 2 Preparation Commecing")
+    logger.info("=============================")
+
+    marking_percentages = [1, 2, 5, 10, 20]
+    marking_percentages = [0.1]
+
+    train_images_path = os.path.join(imagenette_path, "train")
+    test_images_path = os.path.join(imagenette_path, "val")
+    p_values_file = "experiments/table2_imagenette/p_values.pth"
+
+    logger.info("")
+    logger.info("Step 1 - Train Marking Network")
+    logger.info("------------------------------")
+    # Reuses marking network from Table 1 if available
+    optimizer = lambda x : torch.optim.AdamW(x)
+    epochs = 60
+    output_directory = os.path.join("experiments", "table1_imagenette", "marking_network")
+    checkpoint_path = os.path.join(output_directory, "checkpoint.pth") # Used later
+    tensorboard_log_directory = os.path.join("runs", "table1_imagenette", "marking_network")
+    resnet18_imagenette.main(optimizer, train_images_path, test_images_path, output_directory, tensorboard_log_directory, epochs=epochs)
+
+    marking_network = torchvision.models.resnet18(pretrained=False, num_classes=10)
+    marking_network_checkpoint = torch.load(checkpoint_path)
+    marking_network.load_state_dict(marking_network_checkpoint["model_state_dict"])
+
+    logger.info("")
+    logger.info("Step 2 - Image Marking")
+    logger.info("----------------------")
+    # Reuses marked images from Table 1 if available
+    training_set = torchvision.datasets.ImageFolder(train_images_path)
+    for marking_percentage in marking_percentages:
+        experiment_directory = os.path.join("experiments", "table1_imagenette", f"{marking_percentage}_percent")
+        if os.path.exists(os.path.join(experiment_directory, "marking.complete")):
+            message = f"Marking step already completed for {marking_percentage}%. Do you want to restart this part of " \
+                      "the experiment?"
+            if not cutie.prompt_yes_or_no(message, yes_text="Restart", no_text="Skip marking step"):
+                continue
+
+        tensorboard_log_directory = os.path.join("runs", "table1_imagenette", f"{marking_percentage}_percent", "marking")
+        shutil.rmtree(experiment_directory, ignore_errors=True)
+        shutil.rmtree(tensorboard_log_directory, ignore_errors=True)
+        do_marking_run_multiclass(marking_percentage, experiment_directory, tensorboard_log_directory,
+                                  marking_network, training_set)
+
+    logger.info("")
+    logger.info("Step 3 - Training Target Networks")
+    logger.info("---------------------------------")
+    for marking_percentage in marking_percentages:
+        marked_images_directory = os.path.join("experiments", "table1_imagenette", f"{marking_percentage}_percent", "marked_images")
+        output_directory = os.path.join("experiments", "table2_imagenette", f"{marking_percentage}_percent", "marked_classifier")
+        tensorboard_log_directory = os.path.join("runs", "table2_imagenette", f"{marking_percentage}_percent", "target")
+
+        # Train resnet18 from scratch
+        model = torchvision.models.resnet18(pretrained=False, num_classes=10)
+        optimizer = lambda model : torch.optim.AdamW(model.parameters())
+
+        epochs = 60
+        dataloader_func = partial(train_marked_classifier.get_data_loaders_imagenette, 
+                                  train_images_path, test_images_path, marked_images_directory)
+        train_marked_classifier.main(dataloader_func, model, optimizer, output_directory, tensorboard_log_directory, 
+                                     epochs=epochs)
+
+    logger.info("")
+    logger.info("Step 4 - Calculating p-values")
+    logger.info("-----------------------------")
+    p_values = calculate_p_values(marking_percentages, checkpoint_path, 2, True)  
+    torch.save(p_values, p_values_file)
+    p_values = torch.load(p_values_file)
+
+    logger.info("")
+    logger.info("Step 5 - Generating Table 2")
+    logger.info("---------------------------")
+    generate_table_2(marking_percentages, p_values, checkpoint_path)
+
+def main(imagenette_path):
+    setup_logger_tqdm() # Commence logging to console
+    table_1_work(imagenette_path)
+    table_2_work(imagenette_path)
+
+parser_description = 'Perform experiments and generate Table 1 and 2 for imagenette.'
 parser = argparse.ArgumentParser(description=parser_description)
 parser.add_argument("-dir", "--imagenette_path", default="E:/imagenette2/")
 

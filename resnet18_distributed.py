@@ -16,7 +16,7 @@ from torch.utils.tensorboard import SummaryWriter
 from utils import Timer
 
 import logging
-from logger import setup_logger
+from logger import setup_logger_tqdm
 logger = logging.getLogger()
 
 
@@ -145,7 +145,7 @@ def main(device, mp_args, experiment_name, optimizer, output_directory_root="exp
 
     # Setup regular log file + tensorboard
     logfile_path = os.path.join(output_directory, "logfile.txt")
-    setup_logger(logfile_path)
+    setup_logger_tqdm(logfile_path)
 
     tensorboard_log_directory = os.path.join("runs", experiment_name, f"rank_{global_rank}")
     tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)

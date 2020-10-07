@@ -9,11 +9,12 @@ import shutil
 from utils import Timer
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
+import tqdm
 
 from dataset_wrappers import MergedDataset
 from utils import NORMALIZE_CIFAR
 
-from logger import setup_logger
+from logger import setup_logger_tqdm
 logger = logging.getLogger(__name__)
 
 # Datasets use pickle, so we can't just pass in a lambda
@@ -121,7 +122,7 @@ def train_model(device, model, train_set_loader, optimizer):
     total = 0
     correct = 0
     total_loss = 0
-    for images, targets in train_set_loader:
+    for images, targets in tqdm.tqdm(train_set_loader, desc="Training", position=1):
         total += images.shape[0]
         optimizer.zero_grad()
         images = images.to(device, non_blocking=True)
@@ -146,7 +147,7 @@ def test_model(device, model, test_set_loader, optimizer):
     total = 0
     correct = 0
     with torch.no_grad():
-        for images, targets in test_set_loader:
+        for images, targets in tqdm.tqdm(test_set_loader, desc="Testing", position=1):
             total += images.shape[0]
 
             images = images.to(device, non_blocking=True)
@@ -168,7 +169,7 @@ def main(dataloader_func, model, optimizer_callback, output_directory, tensorboa
 
     # Setup regular log file
     logfile_path = os.path.join(output_directory, "logfile.txt")
-    setup_logger(logfile_path)
+    setup_logger_tqdm(logfile_path)
 
     # Setup TensorBoard logging
     tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)
@@ -187,7 +188,6 @@ def main(dataloader_func, model, optimizer_callback, output_directory, tensorboa
     if lr_scheduler:
         lr_scheduler = lr_scheduler(optimizer)
 
-    logger.info("=========== Commencing Training ===========")
     logger.info(f"Epoch Count: {epochs}")
 
     # Load Checkpoint
@@ -213,11 +213,10 @@ def main(dataloader_func, model, optimizer_callback, output_directory, tensorboa
 
     # Training Loop
     t = Timer()
+    progress = tqdm.tqdm(total=epochs, initial=start_epoch, desc="Epochs", position=0)
     for epoch in range(start_epoch, epochs):
         t.start()
-        logger.info("-" * 10)
-        logger.info(f"Epoch {epoch}")
-        logger.info("-" * 10)
+        logger.info(f"Commence EPOCH {epoch}")
 
         # Train
         train_loss, train_accuracy = train_model(device, model, train_set_loader, optimizer)
@@ -250,7 +249,8 @@ def main(dataloader_func, model, optimizer_callback, output_directory, tensorboa
         logger.info(f"Average Train Loss: {train_loss}")
         logger.info(f"Top-1 Train Accuracy: {train_accuracy}")
         logger.info(f"Top-1 Test Accuracy: {test_accuracy}")
-        logger.info("")
+        progress.update()
+    progress.close()
 
 from functools import partial
 

@@ -21,7 +21,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from utils import NORMALIZE_CIFAR
 import differentiable_augmentations
-from logger import setup_logger
+from logger import setup_logger_tqdm
 
 # Get an unconfigured logger, will propagate to root we configure in main program
 logger = logging.getLogger(__name__)
@@ -316,7 +316,7 @@ if __name__ == '__main__':
         os.makedirs(experiment_directory)
 
     logfile_path = os.path.join(experiment_directory, 'marking.log')
-    setup_logger(filepath=logfile_path)
+    setup_logger_tqdm(filepath=logfile_path)
 
     # Clear old tensorboard logs
     our_tensorboard_logs = glob.glob('runs/radioactive*') # main creates extra log dirs

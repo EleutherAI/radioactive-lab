@@ -20,7 +20,7 @@ from detect_radioactivity import main as detect_radioactivity
 import matplotlib.pyplot as plt
 
 import logging
-from logger import setup_logger
+from logger import setup_logger_tqdm
 logger = logging.getLogger(__name__)
 
 """
@@ -43,7 +43,7 @@ def do_marking_run(class_marking_percentage, experiment_directory, tensorboard_l
         return
 
     logfile_path = os.path.join(experiment_directory, 'marking.log')
-    setup_logger(filepath=logfile_path)
+    setup_logger_tqdm(filepath=logfile_path)
 
     # Load randomly sampled images from random class along with list of original indexes 
     training_set = torchvision.datasets.CIFAR10(root="experiments/datasets", download=True)
@@ -95,7 +95,7 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, 
     os.makedirs(experiment_directory)
 
     logfile_path = os.path.join(experiment_directory, 'marking.log')
-    setup_logger(filepath=logfile_path)
+    setup_logger_tqdm(filepath=logfile_path)
 
     training_set = torchvision.datasets.CIFAR10(root="experiments/datasets", download=True)
 
@@ -167,7 +167,7 @@ def do_training_run(run_name, augment):
 
 def calculate_p_values(marking_percentages):
     logfile_path = f"experiments/table1/detect_radioactivity.log"
-    setup_logger(logfile_path)
+    setup_logger_tqdm(logfile_path)
 
     p_values = []
 

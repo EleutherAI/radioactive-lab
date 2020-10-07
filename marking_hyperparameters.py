@@ -11,7 +11,7 @@ from make_data_radioactive import get_images_for_marking_multiclass
 from make_data_radioactive import main as do_marking
 
 import logging
-from logger import setup_logger
+from logger import setup_logger_tqdm
 logger = logging.getLogger(__name__)
 
 def do_marking_run_multiclass(overall_marking_percentage, experiment_name, 
@@ -26,7 +26,7 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_name,
     os.makedirs(experiment_directory)
 
     logfile_path = os.path.join(experiment_directory, 'marking.log')
-    setup_logger(filepath=logfile_path)
+    setup_logger_tqdm(filepath=logfile_path)
 
     # Prepare for TensorBoard
     tensorboard_log_directory_base = f"runs/{experiment_name}"

@@ -3,3 +3,4 @@ tensorboard
 jupyter
 matplotlib
 cutie
+colorama

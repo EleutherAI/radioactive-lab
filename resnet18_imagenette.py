@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 from matplotlib import pyplot as plt
 
 import logging
-from logger import setup_logger
+from logger import setup_logger_tqdm
 logger = logging.getLogger()
 
 import tqdm
@@ -95,7 +95,7 @@ def train_model(device, model, train_set_loader, optimizer):
     total = 0
     correct = 0
     total_loss = 0
-    for images, targets in tqdm.tqdm(train_set_loader, desc="Training"):
+    for images, targets in tqdm.tqdm(train_set_loader, desc="Training", position=0):
         total += images.shape[0]
         optimizer.zero_grad()
         images = images.to(device, non_blocking=True)
@@ -119,7 +119,7 @@ def test_model(device, model, test_set_loader, optimizer):
     total = 0
     correct = 0
     with torch.no_grad():
-        for images, targets in tqdm.tqdm(test_set_loader, desc="Testing"):
+        for images, targets in tqdm.tqdm(test_set_loader, desc="Testing", position=0):
             total += images.shape[0]
 
             images = images.to(device, non_blocking=True)
@@ -140,7 +140,7 @@ def main(optimizer, train_images_path, test_images_path,
 
     # Setup log file + tensorboard
     logfile_path = os.path.join(output_directory, "logfile.txt")
-    setup_logger(logfile_path)
+    setup_logger_tqdm(logfile_path)
     tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)
 
     # Choose Training Device
@@ -160,7 +160,6 @@ def main(optimizer, train_images_path, test_images_path,
     if lr_scheduler:
         lr_scheduler = lr_scheduler(optimizer)
 
-    logger.info("=========== Commencing Training ===========")
     logger.info(f"Epoch Count: {epochs}")
     logger.info(f"Batch Size: {batch_size}")
 
@@ -187,6 +186,7 @@ def main(optimizer, train_images_path, test_images_path,
 
     # Training Loop
     t = Timer()
+    progress = tqdm.tqdm(total=epochs, initial=start_epoch, desc="Epochs", position=1)
     for epoch in range(start_epoch, epochs):
         t.start()
         logger.info("-" * 10)
@@ -225,7 +225,8 @@ def main(optimizer, train_images_path, test_images_path,
         logger.info(f"Average Train Loss: {train_loss}")
         logger.info(f"Top-1 Train Accuracy: {train_accuracy}")
         logger.info(f"Top-1 Test Accuracy: {test_accuracy}")
-        logger.info("")
+        progres.update()
+    progress.close()
 
 # Starts off slow at batch size 8, maxes out on 980 ti around 18 seconds per batch
 # Exploded after 552 batch size - setting to 512

@@ -2,7 +2,7 @@ import torchvision
 import torchvision.transforms.transforms as transforms
 import torch
 import logging
-from logger import setup_logger
+from logger import setup_logger_tqdm
 from torch.nn import functional as F
 import os
 from utils import Timer
@@ -122,7 +122,7 @@ def main(experiment_name, optimizer, output_directory_root="experiments/resnet18
 
     # Setup regular log file + tensorboard
     logfile_path = os.path.join(output_directory, "logfile.txt")
-    setup_logger(logfile_path)
+    setup_logger_tqdm(logfile_path)
 
     tensorboard_log_directory = os.path.join("runs", experiment_name)
     tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)

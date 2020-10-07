@@ -20,7 +20,7 @@ from detect_radioactivity import main as detect_radioactivity
 import matplotlib.pyplot as plt
 
 import logging
-from logger import setup_logger
+from logger import setup_logger_tqdm
 logger = logging.getLogger(__name__)
 
 """
@@ -44,7 +44,7 @@ def do_marking_run(overall_marking_percentage, experiment_directory, tensorboard
     os.makedirs(experiment_directory)
 
     logfile_path = os.path.join(experiment_directory, 'marking.log')
-    setup_logger(filepath=logfile_path)
+    setup_logger_tqdm(filepath=logfile_path)
 
     training_set = torchvision.datasets.CIFAR10(root="experiments/datasets", download=True)
 
@@ -101,7 +101,7 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, 
     os.makedirs(experiment_directory)
 
     logfile_path = os.path.join(experiment_directory, 'marking.log')
-    setup_logger(filepath=logfile_path)
+    setup_logger_tqdm(filepath=logfile_path)
 
     training_set = torchvision.datasets.CIFAR10(root="experiments/datasets", download=True)
 
@@ -165,7 +165,7 @@ def do_training_run(run_name, augment):
 
 def calculate_p_values(marking_percentages):
     logfile_path = f"experiments/table2/detect_radioactivity.log"
-    setup_logger(logfile_path)
+    setup_logger_tqdm(logfile_path)
 
     p_values = []
 
@@ -176,14 +176,6 @@ def calculate_p_values(marking_percentages):
     marking_network.load_state_dict(marking_checkpoint["model_state_dict"])
     marking_network.fc = nn.Sequential()
 
-    ## Perform detection on unmarked network as sanity test
-    #random_carrier_path = "experiments/table2/1_percent/carriers.pth"
-    #(scores, p_vals, combined_pval) = detect_radioactivity(random_carrier_path, marking_network, 
-    #                                                       marking_network, marking_checkpoint, 
-    #                                                       align=False)
-    #p_values.append(combined_pval)
-
-    # The Rest
     for run in marking_percentages:
         run_name = f"{run}_percent"
         carrier_path = f"experiments/table2/{run_name}/carriers.pth"

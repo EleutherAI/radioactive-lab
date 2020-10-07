@@ -13,7 +13,7 @@ from detect_radioactivity import main as detect_radioactivity
 from detect_radioactivity import cosine_pvalue
 
 import logging
-from logger import setup_logger
+from logger import setup_logger_tqdm
 logger = logging.getLogger(__name__)
 
 data_file = "experiments/sanity_test/data.pth"
@@ -23,7 +23,7 @@ def sample_and_detect():
     os.makedirs(experiment_directory, exist_ok=True) 
 
     logfile_path = "experiments/sanity_test/detect_radioactivity.log"
-    setup_logger(logfile_path)
+    setup_logger_tqdm(logfile_path)
 
     p_values = []
 

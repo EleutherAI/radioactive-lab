@@ -17,7 +17,7 @@ import torchvision
 from utils import NORMALIZE_CIFAR, Timer
 
 import logging
-from logger import setup_logger
+from logger import setup_logger_tqdm
 logger = logging.getLogger(__name__)
 
 def cosine_pvalue(c, d):
@@ -173,7 +173,7 @@ if __name__ == '__main__':
     output_directory = os.path.join(experiment_directory, "detect_radioactivity")
     logfile_path = os.path.join(output_directory, "logfile.txt")
     os.makedirs(output_directory, exist_ok=True)
-    setup_logger(logfile_path)
+    setup_logger_tqdm(logfile_path)
 
     carrier_path = os.path.join(experiment_directory, "carriers.pth")
 
