@@ -218,7 +218,7 @@ def generate_table_2(marking_percentages, p_values, marking_checkpoint_path):
 
 
 def table_1_work(imagenette_path):
-    logger.info("Table 1 Preparation Commecing")
+    logger.info("Table 1 Preparation Commencing")
     logger.info("=============================")
     marking_percentages = [1, 2, 5, 10, 20]
 
@@ -299,7 +299,7 @@ def table_1_work(imagenette_path):
 
 def table_2_work(imagenette_path):
     logger.info("")
-    logger.info("Table 2 Preparation Commecing")
+    logger.info("Table 2 Preparation Commencing")
     logger.info("=============================")
 
     marking_percentages = [1, 2, 5, 10, 20]
