@@ -221,7 +221,6 @@ def table_1_work(imagenette_path):
     logger.info("Table 1 Preparation Commecing")
     logger.info("=============================")
     marking_percentages = [1, 2, 5, 10, 20]
-    marking_percentages = [0.1]
 
     train_images_path = os.path.join(imagenette_path, "train")
     test_images_path = os.path.join(imagenette_path, "val")
@@ -304,7 +303,6 @@ def table_2_work(imagenette_path):
     logger.info("=============================")
 
     marking_percentages = [1, 2, 5, 10, 20]
-    marking_percentages = [0.1]
 
     train_images_path = os.path.join(imagenette_path, "train")
     test_images_path = os.path.join(imagenette_path, "val")
