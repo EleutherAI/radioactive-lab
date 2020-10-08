@@ -225,7 +225,7 @@ def main(optimizer, train_images_path, test_images_path,
         logger.info(f"Average Train Loss: {train_loss}")
         logger.info(f"Top-1 Train Accuracy: {train_accuracy}")
         logger.info(f"Top-1 Test Accuracy: {test_accuracy}")
-        progres.update()
+        progress.update()
     progress.close()
 
 # Starts off slow at batch size 8, maxes out on 980 ti around 18 seconds per batch
