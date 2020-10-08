@@ -280,7 +280,7 @@ def table_1_work(imagenette_path):
 
         epochs = 20
         dataloader_func = partial(train_marked_classifier.get_data_loaders_imagenette, 
-                                  train_images_path, test_images_path, marked_images_directory)
+                                  train_images_path, test_images_path, marked_images_directory, batch_size=32)
         train_marked_classifier.main(dataloader_func, model, optimizer, output_directory, tensorboard_log_directory, 
                                      epochs=epochs)
 
@@ -356,7 +356,7 @@ def table_2_work(imagenette_path):
 
         epochs = 60
         dataloader_func = partial(train_marked_classifier.get_data_loaders_imagenette, 
-                                  train_images_path, test_images_path, marked_images_directory)
+                                  train_images_path, test_images_path, marked_images_directory, batch_size=32)
         train_marked_classifier.main(dataloader_func, model, optimizer, output_directory, tensorboard_log_directory, 
                                      epochs=epochs)
 
