@@ -217,7 +217,7 @@ def generate_table_2(marking_percentages, p_values, marking_checkpoint_path):
     plt.show()
 
 
-def table_1_work(imagenette_path):
+def table_1_work(imagenette_path, step_3_batch_size):
     logger.info("Table 1 Preparation Commencing")
     logger.info("=============================")
     marking_percentages = [1, 2, 5, 10, 20]
@@ -280,7 +280,7 @@ def table_1_work(imagenette_path):
 
         epochs = 20
         dataloader_func = partial(train_marked_classifier.get_data_loaders_imagenette, 
-                                  train_images_path, test_images_path, marked_images_directory, batch_size=32)
+                                  train_images_path, test_images_path, marked_images_directory, batch_size=step_3_batch_size)
         train_marked_classifier.main(dataloader_func, model, optimizer, output_directory, tensorboard_log_directory, 
                                      epochs=epochs)
 
@@ -297,7 +297,7 @@ def table_1_work(imagenette_path):
     generate_table_1(marking_percentages, p_values, checkpoint_path)
 
 
-def table_2_work(imagenette_path):
+def table_2_work(imagenette_path, step_3_batch_size):
     logger.info("")
     logger.info("Table 2 Preparation Commencing")
     logger.info("=============================")
@@ -356,7 +356,7 @@ def table_2_work(imagenette_path):
 
         epochs = 60
         dataloader_func = partial(train_marked_classifier.get_data_loaders_imagenette, 
-                                  train_images_path, test_images_path, marked_images_directory, batch_size=32)
+                                  train_images_path, test_images_path, marked_images_directory, batch_size=step_3_batch_size)
         train_marked_classifier.main(dataloader_func, model, optimizer, output_directory, tensorboard_log_directory, 
                                      epochs=epochs)
 
@@ -372,16 +372,17 @@ def table_2_work(imagenette_path):
     logger.info("---------------------------")
     generate_table_2(marking_percentages, p_values, checkpoint_path)
 
-def main(imagenette_path):
+def main(imagenette_path, step_3_batch_size):
     setup_logger_tqdm() # Commence logging to console
-    table_1_work(imagenette_path)
-    table_2_work(imagenette_path)
+    table_1_work(imagenette_path, step_3_batch_size)
+    table_2_work(imagenette_path, step_3_batch_size)
 
 parser_description = 'Perform experiments and generate Table 1 and 2 for imagenette.'
 parser = argparse.ArgumentParser(description=parser_description)
 parser.add_argument("-dir", "--imagenette_path", default="E:/imagenette2/")
+parser.add_argument("-bs", "--batch_size_step_3", type=int, default=16)
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    main(args.imagenette_path)
+    main(args.imagenette_path, args.batch_size_step_3)
 
