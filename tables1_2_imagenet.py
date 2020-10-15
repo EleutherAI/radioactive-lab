@@ -248,6 +248,7 @@ def table_1_work(imagenet_path, step_3_batch_size, mp_args):
             #    continue
 
             logger.info("SKIPPING MARKING - Fix this up before sending to DGX")
+            continue
 
         tensorboard_log_directory = os.path.join("runs", "table1_imagenet", f"{marking_percentage}_percent", "marking")
         shutil.rmtree(experiment_directory, ignore_errors=True)
