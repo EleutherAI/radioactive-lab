@@ -15,7 +15,7 @@ import torchvision.transforms.transforms as transforms
 import random
 import logging
 import glob
-import tqdm
+from tqdm.autonotebook import tqdm
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -67,7 +67,7 @@ def get_psnr(delta):
 
 
 # Supports one class at a time - just run multiple times
-def main(output_directory, marking_network, images, original_indexes, carriers, class_id,
+def main(output_directory, marking_network, images, original_indexes, carriers, class_id, normalizer,
          optimizer_fn, tensorboard_log_directory_base, batch_size=32, epochs=90, lambda_1=0.0005, lambda_2=0.01, 
          angle=None, half_cone=True, radius=10, overwrite=False, augmentation=None):
 
@@ -82,8 +82,8 @@ def main(output_directory, marking_network, images, original_indexes, carriers, 
     os.makedirs(output_directory, exist_ok=True)
 
     # Reshape the mean and std for later use
-    mean = torch.Tensor(NORMALIZE_CIFAR.mean).view(-1, 1, 1)
-    std = torch.Tensor(NORMALIZE_CIFAR.std).view(-1, 1, 1)
+    mean = torch.Tensor(normalizer.mean).view(-1, 1, 1)
+    std = torch.Tensor(normalizer.std).view(-1, 1, 1)
 
     # Setup Device
     use_cuda = torch.cuda.is_available()
@@ -149,7 +149,7 @@ def main(output_directory, marking_network, images, original_indexes, carriers, 
         tensorboard_log_directory = os.path.join(f"{tensorboard_log_directory_base}", f"batch{batch_number}")
         tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)
 
-        for iteration in tqdm.tqdm(range(epochs)):
+        for iteration in tqdm(range(epochs)):
             batch = []
             for x in img_slice:
                 if augmentation:
@@ -247,7 +247,7 @@ def main(output_directory, marking_network, images, original_indexes, carriers, 
     return images_for_tensorboard
 
 
-def get_images_for_marking(training_set, tensorboard_log_directory, class_marking_percentage):
+def get_images_for_marking_cifar10(training_set, tensorboard_log_directory, class_marking_percentage):
 
     # Index images by class
     images_by_class = [[] for x in training_set.classes]
@@ -279,7 +279,7 @@ def get_images_for_marking(training_set, tensorboard_log_directory, class_markin
 
     return chosen_image_class, images_for_marking, train_marked_indexes
 
-def get_images_for_marking_multiclass(training_set, tensorboard_log_directory, overall_marking_percentage):
+def get_images_for_marking_multiclass_cifar10(training_set, tensorboard_log_directory, overall_marking_percentage):
 
     # Randomly sample images
     total_marked_images = int(len(training_set) * (overall_marking_percentage / 100))

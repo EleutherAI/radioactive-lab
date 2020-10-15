@@ -6,7 +6,7 @@ import torchvision.transforms.transforms as transforms
 import torch
 from torch.nn import functional as F
 
-from utils import Timer
+from utils import Timer, NORMALIZE_IMAGENETTE
 from torch.utils.tensorboard import SummaryWriter
 from matplotlib import pyplot as plt
 
@@ -15,8 +15,6 @@ from logger import setup_logger_tqdm
 logger = logging.getLogger()
 
 import tqdm
-
-normalize_imagenette = transforms.Normalize(mean=[0.4618, 0.4571, 0.4288], std=[0.2531, 0.2472, 0.2564])
 
 def get_mean_and_std(train_images_path, test_images_path):
 
@@ -66,7 +64,7 @@ def get_data_loaders(batch_size, num_workers, train_images_path, test_images_pat
                                           transforms.ColorJitter(),
                                           transforms.RandomHorizontalFlip(),
                                           transforms.ToTensor(),
-                                          normalize_imagenette])
+                                          NORMALIZE_IMAGENETTE])
 
     train_set = torchvision.datasets.ImageFolder(train_images_path, transform=train_transform)
 
@@ -80,7 +78,7 @@ def get_data_loaders(batch_size, num_workers, train_images_path, test_images_pat
     # Test
     test_transform = transforms.Compose([transforms.CenterCrop(256),
                                          transforms.ToTensor(),
-                                         normalize_imagenette])
+                                         NORMALIZE_IMAGENETTE])
     test_set = torchvision.datasets.ImageFolder(test_images_path, transform=test_transform)
     test_set_loader = torch.utils.data.DataLoader(test_set, 
                                                   batch_size=batch_size, 

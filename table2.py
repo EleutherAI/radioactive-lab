@@ -11,11 +11,12 @@ import cutie
 from functools import partial
 
 import resnet18_on_cifar10 as resnet18cifar10
-from make_data_radioactive import get_images_for_marking, get_images_for_marking_multiclass
+from make_data_radioactive import get_images_for_marking_cifar10, get_images_for_marking_multiclass_cifar10
 from make_data_radioactive import main as do_marking
 from train_marked_classifier import main as train_marked_classifier
 from train_marked_classifier import get_data_loaders_cifar10
 from detect_radioactivity import main as detect_radioactivity
+from utils import NORMALIZE_CIFAR
 
 import matplotlib.pyplot as plt
 
@@ -64,7 +65,7 @@ def do_marking_run(overall_marking_percentage, experiment_directory, tensorboard
     # Assume each class has equal number of images, adjust class_marking_percentage to
     # fit overall marking_percentage
     class_marking_percentage = overall_marking_percentage * len(training_set.classes)
-    class_id, images, original_indexes = get_images_for_marking(training_set,
+    class_id, images, original_indexes = get_images_for_marking_cifar10(training_set,
                                                                 tensorboard_log_directory,
                                                                 class_marking_percentage)
 
@@ -75,7 +76,7 @@ def do_marking_run(overall_marking_percentage, experiment_directory, tensorboard
     if not augment:
         augmentation = None
     marked_images = do_marking(output_directory, marking_network, images, original_indexes, carriers, 
-                                class_id, optimizer, tensorboard_log_directory, epochs=epochs, 
+                                class_id, NORMALIZE_CIFAR, optimizer, tensorboard_log_directory, epochs=epochs, 
                                 batch_size=batch_size, overwrite=True, augmentation=augmentation)
 
 
@@ -119,7 +120,7 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, 
 
 
     # { 0 : [(image1, original_index1),(image2, original_index2)...], 1 : [....] }
-    image_data = get_images_for_marking_multiclass(training_set,
+    image_data = get_images_for_marking_multiclass_cifar10(training_set,
                                                     tensorboard_log_directory,
                                                     overall_marking_percentage)
     marked_images = []
@@ -135,7 +136,7 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, 
             if not augment:
                 augmentation = None
             marked_images_temp = do_marking(output_directory, marking_network, images, original_indexes, carriers, 
-                                            class_id, optimizer, tensorboard_log_directory, epochs=epochs, 
+                                            class_id, NORMALIZE_CIFAR, optimizer, tensorboard_log_directory, epochs=epochs, 
                                             batch_size=batch_size, overwrite=False, augmentation=augmentation)
             
             marked_images =  marked_images + marked_images_temp 

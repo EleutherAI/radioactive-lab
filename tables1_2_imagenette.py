@@ -30,6 +30,7 @@ from make_data_radioactive import main as do_marking
 import train_marked_classifier
 from detect_radioactivity import main as detect_radioactivity
 import differentiable_augmentations
+from utils import NORMALIZE_IMAGENETTE
 
 import logging
 from logger import setup_logger_tqdm
@@ -43,7 +44,7 @@ def get_images_for_marking_multiclass(training_set, tensorboard_log_directory, o
 
     # Sort images into classes
     # { 0 : [(image1, original_index1),(image2, original_index2)...], 1 : [....] }
-    transform = transforms.Compose([transforms.ToTensor(), resnet18_imagenette.normalize_imagenette])
+    transform = transforms.Compose([transforms.ToTensor(), NORMALIZE_IMAGENETTE])
     image_data = {class_id:[] for class_id in range(0, len(training_set.classes))}    
     for index in train_marked_indexes:
         image, label = training_set[index]
@@ -102,7 +103,7 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, 
             augmentation = differentiable_augmentations.CenterCrop(256, 224)
             tensorboard_class_log = os.path.join(tensorboard_log_directory, f"class_{class_id}")
             marked_images_temp = do_marking(output_directory, marking_network, images, original_indexes, carriers, 
-                                            class_id, optimizer, tensorboard_class_log, epochs=epochs, 
+                                            class_id, NORMALIZE_IMAGENETTE, optimizer, tensorboard_class_log, epochs=epochs, 
                                             batch_size=batch_size, overwrite=False, augmentation=augmentation)
             
             marked_images =  marked_images + marked_images_temp   

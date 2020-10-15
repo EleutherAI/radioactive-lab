@@ -9,10 +9,10 @@ import shutil
 from utils import Timer
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
-import tqdm
+from tqdm.autonotebook import tqdm
 
 from dataset_wrappers import MergedDataset
-from utils import NORMALIZE_CIFAR
+from utils import NORMALIZE_CIFAR, NORMALIZE_IMAGENET, NORMALIZE_IMAGENETTE
 
 from logger import setup_logger_tqdm
 logger = logging.getLogger(__name__)
@@ -69,9 +69,7 @@ def get_data_loaders_cifar10(marked_images_directory, augment, batch_size=512, n
 
     return train_set_loader, test_set_loader
 
-def get_data_loaders_imagenette(train_images_path, test_images_path, marked_images_directory, batch_size=16, num_workers=1):
-
-    normalize_imagenette = transforms.Normalize(mean=[0.4618, 0.4571, 0.4288], std=[0.2531, 0.2472, 0.2564])
+def data_loaders_imagenet_imagenette(train_images_path, test_images_path, marked_images_directory, normalizer, batch_size=16, num_workers=1):
 
     # Base Training Set
     base_train_set = torchvision.datasets.ImageFolder(train_images_path)
@@ -94,7 +92,7 @@ def get_data_loaders_imagenette(train_images_path, test_images_path, marked_imag
                                           transforms.ColorJitter(),
                                           transforms.RandomHorizontalFlip(),
                                           transforms.ToTensor(),
-                                          normalize_imagenette])    
+                                          normalizer])    
 
     merged_train_set.transform = train_transform
 
@@ -107,7 +105,7 @@ def get_data_loaders_imagenette(train_images_path, test_images_path, marked_imag
     # Test
     test_transform = transforms.Compose([transforms.CenterCrop(256),
                                          transforms.ToTensor(),
-                                         normalize_imagenette])
+                                         normalizer])
     test_set = torchvision.datasets.ImageFolder(test_images_path, transform=test_transform)
     test_set_loader = torch.utils.data.DataLoader(test_set, 
                                                   batch_size=batch_size, 
@@ -117,12 +115,22 @@ def get_data_loaders_imagenette(train_images_path, test_images_path, marked_imag
 
     return train_set_loader, test_set_loader
 
+def get_data_loaders_imagenette(train_images_path, test_images_path, marked_images_directory, batch_size=16, num_workers=1):
+    normalizer = NORMALIZE_IMAGENETTE
+    return data_loaders_imagenet_imagenette(train_images_path, test_images_path, marked_images_directory, 
+                                            normalizer, batch_size=batch_size, num_workers=num_workers)
+
+def get_data_loaders_imagenet(train_images_path, test_images_path, marked_images_directory, batch_size=16, num_workers=1):
+    normalizer = NORMALIZE_IMAGENET
+    return data_loaders_imagenet_imagenette(train_images_path, test_images_path, marked_images_directory, 
+                                            normalizer, batch_size=batch_size, num_workers=num_workers)
+
 def train_model(device, model, train_set_loader, optimizer):
     model.train() # For special layers
     total = 0
     correct = 0
     total_loss = 0
-    for images, targets in tqdm.tqdm(train_set_loader, desc="Training", position=1):
+    for images, targets in tqdm(train_set_loader, desc="Training"):
         total += images.shape[0]
         optimizer.zero_grad()
         images = images.to(device, non_blocking=True)
@@ -147,7 +155,7 @@ def test_model(device, model, test_set_loader, optimizer):
     total = 0
     correct = 0
     with torch.no_grad():
-        for images, targets in tqdm.tqdm(test_set_loader, desc="Testing", position=1):
+        for images, targets in tqdm(test_set_loader, desc="Testing"):
             total += images.shape[0]
 
             images = images.to(device, non_blocking=True)
@@ -213,7 +221,7 @@ def main(dataloader_func, model, optimizer_callback, output_directory, tensorboa
 
     # Training Loop
     t = Timer()
-    progress = tqdm.tqdm(total=epochs, initial=start_epoch, desc="Epochs", position=0)
+    progress = tqdm(total=epochs, initial=start_epoch, desc="Epochs")
     for epoch in range(start_epoch, epochs):
         t.start()
         logger.info(f"Commence EPOCH {epoch}")
