@@ -371,9 +371,9 @@ def table_1_work(gpu_count, imagenet_path, step_3_batch_size):
 #     logger.info("---------------------------")
 #     generate_table_2(marking_percentages, p_values, checkpoint_path)
 
-def main(imagenet_path, step_3_batch_size):
+def main(gpu_count, imagenet_path, step_3_batch_size):
     setup_logger_tqdm() # Commence logging to console
-    table_1_work(imagenet_path, step_3_batch_size)
+    table_1_work(gpu_count, imagenet_path, step_3_batch_size)
     # table_2_work(imagenet_path, step_3_batch_size)
 
 parser_description = 'Perform experiments and generate Table 1 and 2 for imagenette.'
