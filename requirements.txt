@@ -4,3 +4,4 @@ jupyter
 matplotlib
 cutie
 colorama
+pytorch-lightning

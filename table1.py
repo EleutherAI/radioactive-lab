@@ -64,7 +64,7 @@ def do_marking_run(class_marking_percentage, experiment_directory, tensorboard_l
     torch.save(carriers, os.path.join(experiment_directory, "carriers.pth"))
 
     # Run!
-    optimizer = lambda x : torch.optim.Adam(x, lr=0.0001)
+    optimizer = lambda x : torch.optim.AdamW(x, lr=0.1)
     epochs = 100
     batch_size = 32
     output_directory = os.path.join(experiment_directory, "marked_images") 
@@ -121,14 +121,16 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, 
     for class_id, image_list in image_data.items():
         if image_list:
             images, original_indexes = map(list, zip(*image_list))
-            optimizer = lambda x : torch.optim.Adam(x, lr=0.0001)
+            optimizer = lambda x : torch.optim.AdamW(x, lr=0.1)
             epochs = 100
             batch_size = 32
             output_directory = os.path.join(experiment_directory, "marked_images")
             if not augment:
                 augmentation = None
+
+            tensorboard_class_log = os.path.join(tensorboard_log_directory, f"class_{class_id}")
             marked_images_temp = do_marking(output_directory, marking_network, images, original_indexes, carriers, 
-                                            class_id, optimizer, tensorboard_log_directory, epochs=epochs, 
+                                            class_id, optimizer, tensorboard_class_log, epochs=epochs, 
                                             batch_size=batch_size, overwrite=False, augmentation=augmentation)
             
             marked_images =  marked_images + marked_images_temp   
@@ -171,21 +173,6 @@ def calculate_p_values(marking_percentages):
 
     p_values = []
 
-    # Load Marking Network and remove fully connected layer
-    marking_network = torchvision.models.resnet18(pretrained=False, num_classes=10)
-    marking_checkpoint_path = "experiments/table1/step1/checkpoint.pth"
-    marking_checkpoint = torch.load(marking_checkpoint_path)
-    marking_network.load_state_dict(marking_checkpoint["model_state_dict"])
-    marking_network.fc = nn.Sequential()
-
-    ## Perform detection on unmarked network as sanity test
-    #random_carrier_path = "experiments/table1/1_percent/carriers.pth"
-    #(scores, p_vals, combined_pval) = detect_radioactivity(random_carrier_path, marking_network, 
-    #                                                       marking_network, marking_checkpoint, 
-    #                                                       align=False)
-    #p_values.append(combined_pval)
-
-    # The Rest
     for run in marking_percentages:
         run_name = f"{run}_percent"
         carrier_path = f"experiments/table1/{run_name}/carriers.pth"
@@ -197,8 +184,8 @@ def calculate_p_values(marking_percentages):
         target_network.fc = nn.Sequential()
 
         # No need to align when only retraining the logistic regression
-        (scores, p_vals, combined_pval) = detect_radioactivity(carrier_path, marking_network, 
-                                                               target_network, target_checkpoint,
+        (scores, p_vals, combined_pval) = detect_radioactivity(carrier_path, None, 
+                                                               None, target_checkpoint,
                                                                align=False)
         p_values.append(combined_pval)
 

@@ -49,7 +49,7 @@ def do_marking_run(overall_marking_percentage, experiment_directory, tensorboard
     training_set = torchvision.datasets.CIFAR10(root="experiments/datasets", download=True)
 
     # Marking network is the resnet18 we trained on CIFAR10
-    marking_network = torchvision.models.resnet18(pretrained=False, num_classes=10)    
+    marking_network = torchvision.models.resnet18(pretrained=False, num_classes=10)
     checkpoint_path = "experiments/table2/step1/checkpoint.pth"
     marking_network_checkpoint = torch.load(checkpoint_path)
     marking_network.load_state_dict(marking_network_checkpoint["model_state_dict"])
@@ -226,11 +226,18 @@ def generate_table_2(marking_percentages, p_values):
     plt.show()
 
 
+from resnet18_logistic_cifar10 import main as resnet18_logistic_cifar10
+
 if __name__ == '__main__':
     marking_percentages = [1, 2, 5, 10, 20]
     p_values_file = "experiments/table2/p_values.pth"
 
     # Step 1 - Train Marking Network
+    #output_directory_root = "experiments/table2"
+    #optimizer = lambda x : torch.optim.AdamW(x)
+    #experiment_name = "step1"
+    #resnet18_logistic_cifar10(experiment_name, optimizer, output_directory_root=output_directory_root)
+
     optimizer = lambda x : torch.optim.AdamW(x)
     output_directory_root = "experiments/table2"
     experiment_name = "step1"
