@@ -167,7 +167,7 @@ def generate_table_1(marking_percentages, p_values, vanilla_accuracy):
     accuracies = [vanilla_accuracy]
     for run in marking_percentages:
         run_name = f"{run}_percent"
-        target_checkpoint_path = f"experiments/table1_imagenet/{run_name}/marked_classifier/checkpoint.pth"
+        target_checkpoint_path = f"experiments/table1_imagenet/{run_name}/marked_classifier/rank_0/checkpoint.pth"
         target_checkpoint = torch.load(target_checkpoint_path)
         accuracies.append(target_checkpoint["test_accuracy"])
 
