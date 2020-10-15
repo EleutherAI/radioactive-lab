@@ -20,13 +20,15 @@ import torchvision
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms.transforms as transforms
 import torch.nn as nn
+import torch.multiprocessing as mp
+import torch.distributed as dist
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 import cutie
 
 from make_data_radioactive import main as do_marking
-import train_marked_classifier
+import train_marked_classifier_dist
 from detect_radioactivity import main as detect_radioactivity
 import differentiable_augmentations
 from utils import NORMALIZE_IMAGENET
@@ -217,7 +219,7 @@ def generate_table_2(marking_percentages, p_values, marking_checkpoint_path):
     plt.show()
 
 
-def table_1_work(imagenet_path, step_3_batch_size):
+def table_1_work(imagenet_path, step_3_batch_size, mp_args):
     logger.info("Table 1 Preparation Commencing")
     logger.info("=============================")
     marking_percentages = [1, 2, 5, 10, 20]
@@ -235,6 +237,7 @@ def table_1_work(imagenet_path, step_3_batch_size):
     logger.info("")
     logger.info("Step 2 - Image Marking")
     logger.info("----------------------")
+    # Parallelized separately
     training_set = torchvision.datasets.ImageFolder(train_images_path)
     for marking_percentage in marking_percentages:
         experiment_directory = os.path.join("experiments", "table1_imagenet", f"{marking_percentage}_percent")
@@ -253,15 +256,14 @@ def table_1_work(imagenet_path, step_3_batch_size):
     logger.info("")
     logger.info("Step 3 - Training Target Networks")
     logger.info("---------------------------------")
+    # Parallelized with DDP
     for marking_percentage in marking_percentages:
         marked_images_directory = os.path.join("experiments", "table1_imagenet", f"{marking_percentage}_percent", "marked_images")
         output_directory = os.path.join("experiments", "table1_imagenet", f"{marking_percentage}_percent", "marked_classifier")
         tensorboard_log_directory = os.path.join("runs", "table1_imagenet", f"{marking_percentage}_percent", "target")
 
-        # Load our trained resnet18 from step1
-        model = torchvision.models.resnet18(pretrained=False, num_classes=10)
-        checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint["model_state_dict"])
+        # Load a new pretrained resnet18
+        model = torchvision.models.resnet18(pretrained=True)
 
         # Retrain the fully connected layer only
         for param in model.parameters():
@@ -271,10 +273,14 @@ def table_1_work(imagenet_path, step_3_batch_size):
         optimizer = lambda model : torch.optim.AdamW(model.fc.parameters())
 
         epochs = 20
-        dataloader_func = partial(train_marked_classifier.get_data_loaders_imagenet, 
-                                  train_images_path, test_images_path, marked_images_directory, batch_size=step_3_batch_size)
-        train_marked_classifier.main(dataloader_func, model, optimizer, output_directory, tensorboard_log_directory, 
-                                     epochs=epochs)
+        dataloader_func = partial(train_marked_classifier_dist.get_data_loaders_imagenet, 
+                                  train_images_path, test_images_path, marked_images_directory, step_3_batch_size, 1)
+
+        train_args = (mp_args, dataloader_func, model, optimizer_callback, output_directory, tensorboard_log_directory, epochs)
+        mp.spawn(train_marked_classifier_dist.main, nprocs=mp_args.gpus, args=train_args)
+
+        #(dataloader_func, model, optimizer, output_directory, tensorboard_log_directory, 
+        #                             epochs=epochs)
 
     logger.info("")
     logger.info("Step 4 - Calculating p-values")
@@ -289,83 +295,99 @@ def table_1_work(imagenet_path, step_3_batch_size):
     generate_table_1(marking_percentages, p_values, checkpoint_path)
 
 
-def table_2_work(imagenet_path, step_3_batch_size):
-    logger.info("")
-    logger.info("Table 2 Preparation Commencing")
-    logger.info("=============================")
+#def table_2_work(imagenet_path, step_3_batch_size, mp_args):
+#    logger.info("")
+#    logger.info("Table 2 Preparation Commencing")
+#    logger.info("=============================")
 
-    marking_percentages = [0.1]
+#    marking_percentages = [0.1]
 
-    train_images_path = os.path.join(imagenet_path, "train")
-    test_images_path = os.path.join(imagenet_path, "val")
-    p_values_file = "experiments/table2_imagenet/p_values.pth"
+#    train_images_path = os.path.join(imagenet_path, "train")
+#    test_images_path = os.path.join(imagenet_path, "val")
+#    p_values_file = "experiments/table2_imagenet/p_values.pth"
 
-    logger.info("")
-    logger.info("Step 1 - Download Marking Network")
-    logger.info("------------------------------")
-    marking_network = torchvision.models.resnet18(pretrained=False, num_classes=10)
+#    logger.info("")
+#    logger.info("Step 1 - Download Marking Network")
+#    logger.info("------------------------------")
+#    marking_network = torchvision.models.resnet18(pretrained=False, num_classes=10)
 
-    logger.info("")
-    logger.info("Step 2 - Image Marking")
-    logger.info("----------------------")
-    # Reuses marked images from Table 1 if available
-    training_set = torchvision.datasets.ImageFolder(train_images_path)
-    for marking_percentage in marking_percentages:
-        experiment_directory = os.path.join("experiments", "table1_imagenet", f"{marking_percentage}_percent")
-        if os.path.exists(os.path.join(experiment_directory, "marking.complete")):
-            message = f"Marking step already completed for {marking_percentage}%. Do you want to restart this part of " \
-                      "the experiment?"
-            if not cutie.prompt_yes_or_no(message, yes_text="Restart", no_text="Skip marking step"):
-                continue
+#    logger.info("")
+#    logger.info("Step 2 - Image Marking")
+#    logger.info("----------------------")
+#    # Reuses marked images from Table 1 if available
+#    training_set = torchvision.datasets.ImageFolder(train_images_path)
+#    for marking_percentage in marking_percentages:
+#        experiment_directory = os.path.join("experiments", "table1_imagenet", f"{marking_percentage}_percent")
+#        if os.path.exists(os.path.join(experiment_directory, "marking.complete")):
+#            message = f"Marking step already completed for {marking_percentage}%. Do you want to restart this part of " \
+#                      "the experiment?"
+#            if not cutie.prompt_yes_or_no(message, yes_text="Restart", no_text="Skip marking step"):
+#                continue
 
-        tensorboard_log_directory = os.path.join("runs", "table1_imagenet", f"{marking_percentage}_percent", "marking")
-        shutil.rmtree(experiment_directory, ignore_errors=True)
-        shutil.rmtree(tensorboard_log_directory, ignore_errors=True)
-        do_marking_run_multiclass(marking_percentage, experiment_directory, tensorboard_log_directory,
-                                  marking_network, training_set)
+#        tensorboard_log_directory = os.path.join("runs", "table1_imagenet", f"{marking_percentage}_percent", "marking")
+#        shutil.rmtree(experiment_directory, ignore_errors=True)
+#        shutil.rmtree(tensorboard_log_directory, ignore_errors=True)
+#        do_marking_run_multiclass(marking_percentage, experiment_directory, tensorboard_log_directory,
+#                                  marking_network, training_set)
 
-    logger.info("")
-    logger.info("Step 3 - Training Target Networks")
-    logger.info("---------------------------------")
-    for marking_percentage in marking_percentages:
-        marked_images_directory = os.path.join("experiments", "table1_imagenet", f"{marking_percentage}_percent", "marked_images")
-        output_directory = os.path.join("experiments", "table2_imagenet", f"{marking_percentage}_percent", "marked_classifier")
-        tensorboard_log_directory = os.path.join("runs", "table2_imagenet", f"{marking_percentage}_percent", "target")
+#    logger.info("")
+#    logger.info("Step 3 - Training Target Networks")
+#    logger.info("---------------------------------")
+#    for marking_percentage in marking_percentages:
+#        marked_images_directory = os.path.join("experiments", "table1_imagenet", f"{marking_percentage}_percent", "marked_images")
+#        output_directory = os.path.join("experiments", "table2_imagenet", f"{marking_percentage}_percent", "marked_classifier")
+#        tensorboard_log_directory = os.path.join("runs", "table2_imagenet", f"{marking_percentage}_percent", "target")
 
-        # Train resnet18 from scratch
-        model = torchvision.models.resnet18(pretrained=False, num_classes=10)
-        optimizer = lambda model : torch.optim.AdamW(model.parameters())
+#        # Train resnet18 from scratch
+#        model = torchvision.models.resnet18(pretrained=False, num_classes=10)
+#        optimizer = lambda model : torch.optim.AdamW(model.parameters())
 
-        epochs = 60
-        dataloader_func = partial(train_marked_classifier.get_data_loaders_imagenet, 
-                                  train_images_path, test_images_path, marked_images_directory, batch_size=step_3_batch_size)
-        train_marked_classifier.main(dataloader_func, model, optimizer, output_directory, tensorboard_log_directory, 
-                                     epochs=epochs)
+#        epochs = 60
+#        dataloader_func = partial(train_marked_classifier.get_data_loaders_imagenet, 
+#                                  train_images_path, test_images_path, marked_images_directory, batch_size=step_3_batch_size)
+#        train_marked_classifier.main(dataloader_func, model, optimizer, output_directory, tensorboard_log_directory, 
+#                                     epochs=epochs)
 
-    logger.info("")
-    logger.info("Step 4 - Calculating p-values")
-    logger.info("-----------------------------")
-    p_values = calculate_p_values(marking_percentages, checkpoint_path, 2, True)  
-    torch.save(p_values, p_values_file)
-    p_values = torch.load(p_values_file)
+#    logger.info("")
+#    logger.info("Step 4 - Calculating p-values")
+#    logger.info("-----------------------------")
+#    p_values = calculate_p_values(marking_percentages, checkpoint_path, 2, True)  
+#    torch.save(p_values, p_values_file)
+#    p_values = torch.load(p_values_file)
 
-    logger.info("")
-    logger.info("Step 5 - Generating Table 2")
-    logger.info("---------------------------")
-    generate_table_2(marking_percentages, p_values, checkpoint_path)
+#    logger.info("")
+#    logger.info("Step 5 - Generating Table 2")
+#    logger.info("---------------------------")
+#    generate_table_2(marking_percentages, p_values, checkpoint_path)
 
-def main(imagenet_path, step_3_batch_size):
+def main(imagenet_path, step_3_batch_size, mp_args):
     setup_logger_tqdm() # Commence logging to console
-    table_1_work(imagenet_path, step_3_batch_size)
-    table_2_work(imagenet_path, step_3_batch_size)
+    table_1_work(imagenet_path, step_3_batch_size, mp_args)
+    #table_2_work(imagenet_path, step_3_batch_size, mp_args)
 
 parser_description = 'Perform experiments and generate Table 1 and 2 for imagenet.'
 parser = argparse.ArgumentParser(description=parser_description)
 parser.add_argument("-dir", "--imagenet_path", default="E:/imagenet2/")
 parser.add_argument("-bs", "--batch_size_step_3", type=int, default=16)
-parser.add_argument("-gpus", "--gpu_count", type=int, default=1)
+parser.add_argument('-n', '--nodes', default=1, type=int, metavar='N',
+                    help='number of data loading workers (default: 1)')
+parser.add_argument('-g', '--gpus', default=1, type=int,
+                    help='number of gpus per node')
+parser.add_argument('-nr', '--nr', default=0, type=int,
+                    help='ranking within the nodes')
+parser.add_argument('--epochs', default=2, type=int, metavar='N',
+                    help='number of total epochs to run')
 
 if __name__ == '__main__':
+    assert(torch.cuda.is_available())
+    assert(torch.distributed.is_available())
     args = parser.parse_args()
-    main(args.imagenet_path, args.batch_size_step_3)
+    os.environ['MASTER_ADDR'] = '127.0.0.1'
+    os.environ['MASTER_PORT'] = '8888'
+
+    mp_args.nr = args.nr
+    mp_args.gpus = args.gpus
+    mp_args.world_size = args.gpus * args.nodes
+
+    main(args.imagenet_path, args.batch_size_step_3, mp_args)
 
