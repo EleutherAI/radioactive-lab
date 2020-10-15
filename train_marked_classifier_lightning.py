@@ -156,7 +156,7 @@ class MarkedClassifier(pl.LightningModule):
         logits = self(images)
         loss = F.nll_loss(logits, targets)
         preds = torch.argmax(logits, dim=1)
-        acc = accuracy(preds, y)
+        acc = accuracy(preds, targets)
 
         self.log('val_loss', loss, prog_bar=True)
         self.log('val_acc', acc, prog_bar=True)
