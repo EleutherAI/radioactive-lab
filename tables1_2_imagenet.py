@@ -279,7 +279,7 @@ def table_1_work(imagenet_path, step_3_batch_size, mp_args):
         dataloader_func = partial(train_marked_classifier_dist.get_data_loaders_imagenet, 
                                   train_images_path, test_images_path, marked_images_directory, step_3_batch_size, 1)
 
-        train_args = (mp_args, dataloader_func, model, optimizer_callback, output_directory, tensorboard_log_directory, epochs)
+        train_args = (mp_args, dataloader_func, model, optimizer, output_directory, tensorboard_log_directory, epochs)
         mp.spawn(train_marked_classifier_dist.main, nprocs=mp_args.gpus, args=train_args)
 
         #(dataloader_func, model, optimizer, output_directory, tensorboard_log_directory, 
