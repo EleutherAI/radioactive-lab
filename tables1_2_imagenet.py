@@ -244,8 +244,10 @@ def table_1_work(imagenet_path, step_3_batch_size, mp_args):
         if os.path.exists(os.path.join(experiment_directory, "marking.complete")):
             message = f"Marking step already completed for {marking_percentage}%. Do you want to restart this part of " \
                       "the experiment?"
-            if not cutie.prompt_yes_or_no(message, yes_text="Restart", no_text="Skip marking step"):
-                continue
+            #if not cutie.prompt_yes_or_no(message, yes_text="Restart", no_text="Skip marking step"):
+            #    continue
+
+            logger.info("SKIPPING MARKING - Fix this up before sending to DGX")
 
         tensorboard_log_directory = os.path.join("runs", "table1_imagenet", f"{marking_percentage}_percent", "marking")
         shutil.rmtree(experiment_directory, ignore_errors=True)
