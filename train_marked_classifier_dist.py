@@ -6,6 +6,7 @@ import torchvision
 import torchvision.transforms.transforms as transforms
 import torch
 from torch.nn import functional as F
+import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 import torch.distributed as dist
 import numpy as np

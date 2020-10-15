@@ -21,7 +21,6 @@ from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms.transforms as transforms
 import torch.nn as nn
 import torch.multiprocessing as mp
-import torch.distributed as dist
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
