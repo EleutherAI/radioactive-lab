@@ -233,7 +233,7 @@ def main(device, mp_args, dataloader_func, model, optimizer_callback, output_dir
 
     # Training Loop
     t = Timer()
-    progress = tqdm(total=epochs, initial=start_epoch, desc="Epochs")
+    #progress = tqdm(total=epochs, initial=start_epoch, desc="Epochs")
     for epoch in range(start_epoch, epochs):
         t.start()
         logger.info(f"Commence EPOCH {epoch}")
@@ -263,8 +263,8 @@ def main(device, mp_args, dataloader_func, model, optimizer_callback, output_dir
         logger.info(f"Average Train Loss: {train_loss}")
         logger.info(f"Top-1 Train Accuracy: {train_accuracy}")
         logger.info(f"Top-1 Test Accuracy: {test_accuracy}")
-        progress.update()
-    progress.close()
+        #progress.update()
+    #progress.close()
 
 from functools import partial
 
