@@ -122,7 +122,7 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, 
         fh.write("1")
 
 def calculate_p_values(marking_percentages, marking_checkpoint_path, table_number, align):
-    logfile_path = f"experiments/table{table_number}_imagenette/detect_radioactivity.log"
+    logfile_path = f"experiments/table{table_number}_imagenet/detect_radioactivity.log"
     setup_logger_tqdm(logfile_path)
 
     p_values = []
@@ -135,10 +135,12 @@ def calculate_p_values(marking_percentages, marking_checkpoint_path, table_numbe
 
     for run in marking_percentages:
         run_name = f"{run}_percent"
-        carrier_path = f"experiments/table1_imagenette/{run_name}/carriers.pth"
+        carrier_path = f"experiments/table1_imagenet/{run_name}/carriers.pth"
+
+        model = MarkedClassifier.load_from_checkpoint(PATH)
 
         target_network = torchvision.models.resnet18(pretrained=False, num_classes=10)
-        target_checkpoint_path = f"experiments/table{table_number}_imagenette/{run_name}/marked_classifier/checkpoint.pth"
+        target_checkpoint_path = f"experiments/table{table_number}_imagenet/{run_name}/marked_classifier/checkpoint.pth"
         target_checkpoint = torch.load(target_checkpoint_path)
         target_network.load_state_dict(target_checkpoint["model_state_dict"])
         target_network.fc = nn.Sequential()
@@ -261,6 +263,7 @@ def table_1_work(gpu_count, imagenet_path, step_3_batch_size):
 
         marked_images_directory = os.path.join("experiments", "table1_imagenet", f"{marking_percentage}_percent", "marked_images")
         output_directory = os.path.join("experiments", "table1_imagenet", f"{marking_percentage}_percent", "marked_classifier")
+        os.makedirs(output_directory, exist_ok=True)
         tensorboard_log_directory = os.path.join("runs", "table1_imagenet", f"{marking_percentage}_percent", "target")
 
         # Download a fresh pretrained resnet18
@@ -272,14 +275,13 @@ def table_1_work(gpu_count, imagenet_path, step_3_batch_size):
         model.fc = nn.Linear(model.fc.in_features, imagenet_classes)
         optimizer = lambda x : torch.optim.AdamW(x.fc.parameters())
 
-        epochs = 20
+        epochs = 2
         dataloader_func = partial(get_data_loaders_imagenet, 
                                   train_images_path, test_images_path, marked_images_directory, batch_size=step_3_batch_size)
-
-        default_root_dir='/your/path/to/save/checkpoints'
+   
         model = MarkedClassifier(model, optimizer, dataloader_func)
-        tb_logger = TensorBoardLogger(tensorboard_log_directory)
-        trainer = pl.Trainer(default_root_dir=output_directory, logger=tb_logger,
+        #tb_logger = TensorBoardLogger(tensorboard_log_directory)
+        trainer = pl.Trainer(default_root_dir=output_directory, #logger=tb_logger,
                              gpus=gpu_count, max_epochs=epochs, progress_bar_refresh_rate=20)
         trainer.fit(model)
 
@@ -376,7 +378,7 @@ def main(gpu_count, imagenet_path, step_3_batch_size):
     table_1_work(gpu_count, imagenet_path, step_3_batch_size)
     # table_2_work(imagenet_path, step_3_batch_size)
 
-parser_description = 'Perform experiments and generate Table 1 and 2 for imagenette.'
+parser_description = 'Perform experiments and generate Table 1 and 2 for imagenet.'
 parser = argparse.ArgumentParser(description=parser_description)
 parser.add_argument("-dir", "--imagenet_path", default="E:/imagenette2/")
 parser.add_argument("-bs", "--batch_size_step_3", type=int, default=16)
