@@ -149,7 +149,7 @@ def calculate_p_values(marking_percentages, table_number, align):
         target_network = torchvision.models.resnet18(pretrained=False, num_classes=10)
         target_checkpoint_path = f"experiments/table{table_number}_imagenet/{run_name}/marked_classifier/rank_0/checkpoint.pth"
         target_checkpoint = torch.load(target_checkpoint_path)
-        target_checkpoint['model_state_dict'] = {k.replace("module.", ""): v for k, v in tested_ckpt['model_state_dict'].items()}
+        target_checkpoint['model_state_dict'] = {k.replace("module.", ""): v for k, v in target_checkpoint['model_state_dict'].items()}
 
         target_network.load_state_dict(target_checkpoint['model_state_dict'])
         target_network.fc = nn.Sequential()
