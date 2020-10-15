@@ -134,6 +134,7 @@ class MarkedClassifier(pl.LightningModule):
         super().__init__()
         self.model = model
         self.optimizer_func = optimizer_func
+        self.dataloader_func = dataloader_func
         self.batch_size = batch_size
         self.num_workers = num_workers
 
