@@ -170,7 +170,7 @@ class MarkedClassifier(pl.LightningModule):
         return optimizer
 
     def setup(self, stage=None):
-        train_set_loader, test_set_loader = dataloader_func()
+        train_set_loader, test_set_loader = self.dataloader_func()
         self.train_set_loader = train_set_loader
         self.test_set_loader = test_set_loader
 
