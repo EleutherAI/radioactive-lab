@@ -1,19 +1,21 @@
-import torchvision
-import torchvision.transforms.transforms as transforms
-import torch
-import logging
-from torch.nn import functional as F
 import os
 import re
 import shutil
-from utils import Timer
+
+import torchvision
+import torchvision.transforms.transforms as transforms
+import torch
+from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
+import torch.distributed as dist
 import numpy as np
 from tqdm.autonotebook import tqdm
 
+from utils import Timer
 from dataset_wrappers import MergedDataset
 from utils import NORMALIZE_CIFAR, NORMALIZE_IMAGENET, NORMALIZE_IMAGENETTE
 
+import logging
 from logger import setup_logger_tqdm
 logger = logging.getLogger(__name__)
 
