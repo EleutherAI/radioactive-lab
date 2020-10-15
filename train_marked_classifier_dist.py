@@ -10,7 +10,7 @@ import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 import torch.distributed as dist
 import numpy as np
-from tqdm.autonotebook import tqdm
+from tqdm import tqdm
 
 from utils import Timer
 from dataset_wrappers import MergedDataset
