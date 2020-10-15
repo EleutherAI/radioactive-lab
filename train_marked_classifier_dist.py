@@ -176,6 +176,9 @@ def test_model(device, model, test_set_loader, optimizer):
     accuracy = 100. * correct.item() / total
     return accuracy
 
+# Can't pickle lambdas...
+def adamw_logistic(model):
+    return torch.optim.AdamW(model.fc.parameters())
 
 def main(device, mp_args, dataloader_func, model, optimizer_callback, output_directory, tensorboard_log_directory, 
          epochs):
