@@ -110,15 +110,13 @@ def get_data_loader(batch_size, num_workers):
 
     return test_set_loader
 
-def main(carrier_path, marking_network, target_network, target_checkpoint, batch_size=256, num_workers=1, align=True):   
+def main(carrier_path, marking_network, target_network, target_checkpoint, batch_size=256, num_workers=1, align=True,
+         test_set_loader=None):   
 
     # Setup Device
     use_cuda = torch.cuda.is_available()
     logger.info(f"CUDA Available? {use_cuda}")
     device = torch.device("cuda" if use_cuda else "cpu")
-
-    # Setup Dataloader
-    test_set_loader = get_data_loader(batch_size, num_workers)
 
     # Load Carrier
     carrier = torch.load(carrier_path).numpy()
@@ -136,6 +134,10 @@ def main(carrier_path, marking_network, target_network, target_checkpoint, batch
 
         target_network.to(device)
         target_network.eval()
+
+        # Setup Dataloader
+        if not test_set_loader:
+            test_set_loader = get_data_loader(batch_size, num_workers)
 
         logger.info("Extracting image features from marking and target networks.")
         features_marking, _ = extract_features(test_set_loader, marking_network, device, verbose=False)

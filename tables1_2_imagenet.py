@@ -132,7 +132,7 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, 
     with open(os.path.join(experiment_directory, "marking.complete"),"w") as fh:
         fh.write("1")
 
-def calculate_p_values(marking_percentages, table_number, align):
+def calculate_p_values(marking_percentages, table_number, batch_size, align, test_set_loader):
     logfile_path = f"experiments/table{table_number}_imagenet/detect_radioactivity.log"
     setup_logger_tqdm(logfile_path)
 
@@ -156,12 +156,13 @@ def calculate_p_values(marking_percentages, table_number, align):
   
         (scores, p_vals, combined_pval) = detect_radioactivity(carrier_path, marking_network, 
                                                                target_network, target_checkpoint,
-                                                               align=align)
+                                                               batch_size=batch_size,
+                                                               align=align, test_set_loader=test_set_loader)
         p_values.append(combined_pval)
 
     return p_values
 
-def generate_table_1(marking_percentages, p_values, marking_checkpoint_path, vanilla_accuracy):
+def generate_table_1(marking_percentages, p_values, vanilla_accuracy):
 
     accuracies = [vanilla_accuracy]
     for run in marking_percentages:
@@ -296,7 +297,8 @@ def table_1_work(imagenet_path, step_3_batch_size, mp_args):
     logger.info("")
     logger.info("Step 4 - Calculating p-values")
     logger.info("-----------------------------")
-    p_values = calculate_p_values(marking_percentages, 1, False)  
+    _, test_set_loader = train_marked_classifier_dist.get_imagenet_test_loader(test_images_path, batch_size=step_3_batch_size)
+    p_values = calculate_p_values(marking_percentages, 1, step_3_batch_size, False, None)
     torch.save(p_values, p_values_file)
     p_values = torch.load(p_values_file)
 
@@ -306,13 +308,10 @@ def table_1_work(imagenet_path, step_3_batch_size, mp_args):
     # Get Vanilla Accuracy
     marking_network = torchvision.models.resnet18(pretrained=True)
     marking_network.to("cuda")
-    _, test_set_loader = train_marked_classifier_dist.get_data_loaders_imagenet(train_images_path, test_images_path,
-                                                                                marked_images_directory, step_3_batch_size, 1,
-                                                                                1, 0)
     vanilla_accuracy = train_marked_classifier_dist.test_model("cuda", marking_network, test_set_loader)
 
     # Finish Up
-    generate_table_1(marking_percentages, p_values, checkpoint_path, vanilla_accuracy)
+    generate_table_1(marking_percentages, p_values, vanilla_accuracy)
 
 
 #def table_2_work(imagenet_path, step_3_batch_size, mp_args):

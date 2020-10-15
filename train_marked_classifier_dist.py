@@ -124,6 +124,19 @@ def data_loaders_imagenet_imagenette(train_images_path, test_images_path, marked
 
     return train_set_loader, test_set_loader
 
+def get_imagenet_test_loader(test_images_path, batch_size=16, num_workers=1):
+    test_transform = transforms.Compose([transforms.CenterCrop(256),
+                                         transforms.ToTensor(),
+                                         normalizer])
+    test_set = torchvision.datasets.ImageFolder(test_images_path, transform=test_transform)
+    test_set_loader = torch.utils.data.DataLoader(test_set, 
+                                                  batch_size=batch_size, 
+                                                  num_workers=num_workers, 
+                                                  shuffle=False,
+                                                  pin_memory=True)
+
+    return test_set_loader
+
 def get_data_loaders_imagenette(train_images_path, test_images_path, marked_images_directory, 
                                 batch_size, num_workers, world_size, rank):
     normalizer = NORMALIZE_IMAGENETTE
