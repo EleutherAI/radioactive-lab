@@ -124,7 +124,7 @@ def data_loaders_imagenet_imagenette(train_images_path, test_images_path, marked
 
     return train_set_loader, test_set_loader
 
-def get_imagenet_test_loader(test_images_path, batch_size=16, num_workers=1):
+def get_imagenet_test_loader(test_images_path, normalizer, batch_size=16, num_workers=1):
     test_transform = transforms.Compose([transforms.CenterCrop(256),
                                          transforms.ToTensor(),
                                          normalizer])

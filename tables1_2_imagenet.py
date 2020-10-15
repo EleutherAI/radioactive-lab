@@ -297,7 +297,8 @@ def table_1_work(imagenet_path, step_3_batch_size, mp_args):
     logger.info("")
     logger.info("Step 4 - Calculating p-values")
     logger.info("-----------------------------")
-    _, test_set_loader = train_marked_classifier_dist.get_imagenet_test_loader(test_images_path, batch_size=step_3_batch_size)
+    _, test_set_loader = train_marked_classifier_dist.get_imagenet_test_loader(test_images_path, NORMALIZE_IMAGENET, 
+                                                                               batch_size=step_3_batch_size)
     p_values = calculate_p_values(marking_percentages, 1, step_3_batch_size, False, None)
     torch.save(p_values, p_values_file)
     p_values = torch.load(p_values_file)
