@@ -132,7 +132,7 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, 
     with open(os.path.join(experiment_directory, "marking.complete"),"w") as fh:
         fh.write("1")
 
-def calculate_p_values(marking_percentages, marking_checkpoint_path, table_number, align):
+def calculate_p_values(marking_percentages, table_number, align):
     logfile_path = f"experiments/table{table_number}_imagenet/detect_radioactivity.log"
     setup_logger_tqdm(logfile_path)
 
@@ -294,7 +294,7 @@ def table_1_work(imagenet_path, step_3_batch_size, mp_args):
     logger.info("")
     logger.info("Step 4 - Calculating p-values")
     logger.info("-----------------------------")
-    p_values = calculate_p_values(marking_percentages, checkpoint_path, 1, False)  
+    p_values = calculate_p_values(marking_percentages, 1, False)  
     torch.save(p_values, p_values_file)
     p_values = torch.load(p_values_file)
 
