@@ -161,7 +161,7 @@ def train_model(device, model, train_set_loader, optimizer):
 
     return average_train_loss, accuracy
 
-def test_model(device, model, test_set_loader, optimizer):
+def test_model(device, model, test_set_loader):
     model.eval() # For special layers
     total = 0
     correct = 0
@@ -244,7 +244,7 @@ def main(device, mp_args, dataloader_func, model, optimizer_callback, output_dir
         tensorboard_summary_writer.add_scalar("train_accuracy", train_accuracy, epoch)
         
         # Test
-        test_accuracy = test_model(device, model, test_set_loader, optimizer)
+        test_accuracy = test_model(device, model, test_set_loader)
         tensorboard_summary_writer.add_scalar("test_accuracy", test_accuracy, epoch)
 
         # Save Checkpoint

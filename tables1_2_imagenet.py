@@ -1,11 +1,23 @@
 """
-1. Download resnet18 pretrained on imagenet.
-2. Generate 1, 2, 5, 10% Markings using network from step 1 as marking network.
-3. Create a logistic regression network on the end of the pretrained resnet from step 1.
+Table 1
+-------
+1. Download resnet18 pretrained on Imagenet ILSVRC 2012.
+2. Generate 1, 2, 5, 10% markings using network from step 1.
+3. Retrain the logistic regression layer on a copy of the pretrained resnet18 using the marked
+   images merged with vanilla images.
    Train it using the radioactive data from step 2.
 4. Perform the radioactive detection p-tests on the network trained in step 3. Compare the top-1 accuracy
-   of this network with the network trained in step 1.
-5. Generate Table 1. "Center Crop" augmentation makes no sense when using CIFAR10 data so this is skipped.
+   of this network with the network downloaded in step 1.
+5. Generate Table 1.
+
+Table 2
+-------
+1. Download resnet18 pretrained on Imagenet ILSVRC 2012.
+2. Re-use the marked images generated for Table 1
+3. Train a resnet18 from scratching with marked images merged with vanilla images.
+4. Perform the radioactive detection p-tests on the network trained in step 3. Compare the top-1 accuracy
+   of this network with the network downloaded in step 1.
+5. Generate Table 2.
 """
 
 import random
@@ -127,9 +139,7 @@ def calculate_p_values(marking_percentages, marking_checkpoint_path, table_numbe
     p_values = []
 
     # Load Marking Network and remove fully connected layer
-    marking_network = torchvision.models.resnet18(pretrained=False, num_classes=10)
-    marking_checkpoint = torch.load(marking_checkpoint_path)
-    marking_network.load_state_dict(marking_checkpoint["model_state_dict"])
+    marking_network = torchvision.models.resnet18(pretrained=True)
     marking_network.fc = nn.Sequential()
 
     for run in marking_percentages:
@@ -137,7 +147,7 @@ def calculate_p_values(marking_percentages, marking_checkpoint_path, table_numbe
         carrier_path = f"experiments/table1_imagenet/{run_name}/carriers.pth"
 
         target_network = torchvision.models.resnet18(pretrained=False, num_classes=10)
-        target_checkpoint_path = f"experiments/table{table_number}_imagenet/{run_name}/marked_classifier/checkpoint.pth"
+        target_checkpoint_path = f"experiments/table{table_number}_imagenet/{run_name}/marked_classifier/rank_0/checkpoint.pth"
         target_checkpoint = torch.load(target_checkpoint_path)
         target_network.load_state_dict(target_checkpoint["model_state_dict"])
         target_network.fc = nn.Sequential()
@@ -149,12 +159,9 @@ def calculate_p_values(marking_percentages, marking_checkpoint_path, table_numbe
 
     return p_values
 
-def generate_table_1(marking_percentages, p_values, marking_checkpoint_path):
-    # Get Vanilla Accuracy
-    vanilla_checkpoint = torch.load(marking_checkpoint_path)
+def generate_table_1(marking_percentages, p_values, marking_checkpoint_path, vanilla_accuracy):
 
-    # The Rest
-    accuracies = [vanilla_checkpoint["test_accuracy"]]
+    accuracies = [vanilla_accuracy]
     for run in marking_percentages:
         run_name = f"{run}_percent"
         target_checkpoint_path = f"experiments/table1_imagenet/{run_name}/marked_classifier/checkpoint.pth"
@@ -183,39 +190,39 @@ def generate_table_1(marking_percentages, p_values, marking_checkpoint_path):
     plt.savefig("experiments/table1_imagenet/table1.png")
     plt.show()
 
-def generate_table_2(marking_percentages, p_values, marking_checkpoint_path):
-    # Get Vanilla Accuracy
-    vanilla_checkpoint = torch.load(marking_checkpoint_path)
+#def generate_table_2(marking_percentages, p_values, marking_checkpoint_path):
+#    # Get Vanilla Accuracy
+#    vanilla_checkpoint = torch.load(marking_checkpoint_path)
 
-    # The Rest
-    accuracies = [vanilla_checkpoint["test_accuracy"]]
-    for run in marking_percentages:
-        run_name = f"{run}_percent"
-        target_checkpoint_path = f"experiments/table2_imagenet/{run_name}/marked_classifier/checkpoint.pth"
-        target_checkpoint = torch.load(target_checkpoint_path)
-        accuracies.append(target_checkpoint["test_accuracy"])
+#    # The Rest
+#    accuracies = [vanilla_checkpoint["test_accuracy"]]
+#    for run in marking_percentages:
+#        run_name = f"{run}_percent"
+#        target_checkpoint_path = f"experiments/table2_imagenet/{run_name}/marked_classifier/checkpoint.pth"
+#        target_checkpoint = torch.load(target_checkpoint_path)
+#        accuracies.append(target_checkpoint["test_accuracy"])
 
-    formatted_accuracies = list(map(lambda x: f"{float(x):0.2f}", accuracies))
+#    formatted_accuracies = list(map(lambda x: f"{float(x):0.2f}", accuracies))
 
-    # Create the table!
-    column_labels = tuple([0] + marking_percentages)
-    colors = plt.cm.BuPu(np.linspace(0, 0.5, len(column_labels)))
-    row_labels = ["log10(p)", "Top-1 %"]
-    formatted_pvalues = ["n/a"]
-    formatted_pvalues += [f"{p:0.4f}" for p in np.log10(p_values)]
+#    # Create the table!
+#    column_labels = tuple([0] + marking_percentages)
+#    colors = plt.cm.BuPu(np.linspace(0, 0.5, len(column_labels)))
+#    row_labels = ["log10(p)", "Top-1 %"]
+#    formatted_pvalues = ["n/a"]
+#    formatted_pvalues += [f"{p:0.4f}" for p in np.log10(p_values)]
 
-    cell_text = [formatted_pvalues, formatted_accuracies]
+#    cell_text = [formatted_pvalues, formatted_accuracies]
 
-    fig = plt.figure()
-    ax = fig.add_subplot(1,1,1)
-    ax.axis('off')
-    table = ax.table(cellText=cell_text,
-                     rowLabels=row_labels,
-                     colColours=colors,
-                     colLabels=column_labels,
-                     loc='center')
-    plt.savefig("experiments/table2_imagenet/table2.png")
-    plt.show()
+#    fig = plt.figure()
+#    ax = fig.add_subplot(1,1,1)
+#    ax.axis('off')
+#    table = ax.table(cellText=cell_text,
+#                     rowLabels=row_labels,
+#                     colColours=colors,
+#                     colLabels=column_labels,
+#                     loc='center')
+#    plt.savefig("experiments/table2_imagenet/table2.png")
+#    plt.show()
 
 
 def table_1_work(imagenet_path, step_3_batch_size, mp_args):
@@ -274,7 +281,7 @@ def table_1_work(imagenet_path, step_3_batch_size, mp_args):
         model.fc = nn.Linear(model.fc.in_features, num_classes)
         optimizer = train_marked_classifier_dist.adamw_logistic     
 
-        epochs = 20
+        epochs = 13
         dataloader_func = partial(train_marked_classifier_dist.get_data_loaders_imagenet, 
                                   train_images_path, test_images_path, marked_images_directory, step_3_batch_size, 1)
 
@@ -294,7 +301,16 @@ def table_1_work(imagenet_path, step_3_batch_size, mp_args):
     logger.info("")
     logger.info("Step 5 - Generating Table 1")
     logger.info("---------------------------")
-    generate_table_1(marking_percentages, p_values, checkpoint_path)
+    # Get Vanilla Accuracy
+    marking_network = torchvision.models.resnet18(pretrained=True)
+    marking_network.to("cuda")
+    _, test_set_loader = train_marked_classifier_dist.get_data_loaders_imagenet(train_images_path, test_images_path,
+                                                                                marked_images_directory, step_3_batch_size, 1,
+                                                                                1, 0)
+    vanilla_accuracy = train_marked_classifier_dist.test_model("cuda", marking_network, test_set_loader)
+
+    # Finish Up
+    generate_table_1(marking_percentages, p_values, checkpoint_path, vanilla_accuracy)
 
 
 #def table_2_work(imagenet_path, step_3_batch_size, mp_args):
