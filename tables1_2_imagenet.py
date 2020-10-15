@@ -279,7 +279,7 @@ def table_1_work(gpu_count, imagenet_path, step_3_batch_size):
         default_root_dir='/your/path/to/save/checkpoints'
         model = MarkedClassifier(model, optimizer, dataloader_func)
         tb_logger = TensorBoardLogger(tensorboard_log_directory)
-        trainer = pl.Trainer(default_root_dir=output_directory, logger=tb_logger
+        trainer = pl.Trainer(default_root_dir=output_directory, logger=tb_logger,
                              gpus=gpu_count, max_epochs=epochs, progress_bar_refresh_rate=20)
         trainer.fit(model)
 
