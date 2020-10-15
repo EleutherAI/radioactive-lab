@@ -376,6 +376,10 @@ parser.add_argument('-g', '--gpus', default=1, type=int,
 parser.add_argument('-nr', '--nr', default=0, type=int,
                     help='ranking within the nodes')
 
+class AnonObject(object):
+    def __init__(self):
+        pass
+
 if __name__ == '__main__':
     assert(torch.cuda.is_available())
     assert(torch.distributed.is_available())
@@ -383,6 +387,7 @@ if __name__ == '__main__':
     os.environ['MASTER_ADDR'] = '127.0.0.1'
     os.environ['MASTER_PORT'] = '8888'
 
+    mp_args = AnonObject()
     mp_args.nr = args.nr
     mp_args.gpus = args.gpus
     mp_args.world_size = args.gpus * args.nodes
