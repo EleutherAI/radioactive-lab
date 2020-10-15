@@ -239,20 +239,20 @@ def table_1_work(gpu_count, imagenet_path, step_3_batch_size):
     logger.info("")
     logger.info("Step 2 - Image Marking")
     logger.info("----------------------")
-    training_set = torchvision.datasets.ImageFolder(train_images_path)
-    for marking_percentage in marking_percentages:
-        experiment_directory = os.path.join("experiments", "table1_imagenet", f"{marking_percentage}_percent")
-        if os.path.exists(os.path.join(experiment_directory, "marking.complete")):
-            message = f"Marking step already completed for {marking_percentage}%. Do you want to restart this part of " \
-                      "the experiment?"
-            if not cutie.prompt_yes_or_no(message, yes_text="Restart", no_text="Skip marking step"):
-                continue
+    #training_set = torchvision.datasets.ImageFolder(train_images_path)
+    #for marking_percentage in marking_percentages:
+    #    experiment_directory = os.path.join("experiments", "table1_imagenet", f"{marking_percentage}_percent")
+    #    if os.path.exists(os.path.join(experiment_directory, "marking.complete")):
+    #        message = f"Marking step already completed for {marking_percentage}%. Do you want to restart this part of " \
+    #                  "the experiment?"
+    #        if not cutie.prompt_yes_or_no(message, yes_text="Restart", no_text="Skip marking step"):
+    #            continue
 
-        tensorboard_log_directory = os.path.join("runs", "table1_imagenet", f"{marking_percentage}_percent", "marking")
-        shutil.rmtree(experiment_directory, ignore_errors=True)
-        shutil.rmtree(tensorboard_log_directory, ignore_errors=True)
-        do_marking_run_multiclass(marking_percentage, experiment_directory, tensorboard_log_directory,
-                                  marking_network, training_set)
+    #    tensorboard_log_directory = os.path.join("runs", "table1_imagenet", f"{marking_percentage}_percent", "marking")
+    #    shutil.rmtree(experiment_directory, ignore_errors=True)
+    #    shutil.rmtree(tensorboard_log_directory, ignore_errors=True)
+    #    do_marking_run_multiclass(marking_percentage, experiment_directory, tensorboard_log_directory,
+    #                              marking_network, training_set)
 
     logger.info("")
     logger.info("Step 3 - Training Target Networks")
