@@ -25,7 +25,6 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import cutie
 
-import resnet18_imagenet
 from make_data_radioactive import main as do_marking
 import train_marked_classifier
 from detect_radioactivity import main as detect_radioactivity
