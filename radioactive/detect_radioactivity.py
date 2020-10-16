@@ -4,20 +4,21 @@
 # This source code is licensed under the CC-by-NC license found in the
 # LICENSE file in the root directory of this source tree.
 #
-import numpy as np
+import os
+import time
+
 import torch
 import torch.nn as nn
+import torchvision
+import torchvision.transforms.transforms as transforms
 from scipy.stats import combine_pvalues
 from scipy.special import betainc
-import time
-import os
-import torchvision.transforms.transforms as transforms
-import torchvision
+import numpy as np
 
-from utils import NORMALIZE_CIFAR, Timer
+from utils.utils import NORMALIZE_CIFAR10, Timer
 
 import logging
-from logger import setup_logger_tqdm
+from utils.logger import setup_logger_tqdm
 logger = logging.getLogger(__name__)
 
 def cosine_pvalue(c, d):
@@ -100,7 +101,7 @@ def extract_features(loader, model, device, ignore_first=False, numpy=False, ver
 def get_data_loader(batch_size, num_workers):
 
     dataset_directory = "experiments/datasets"
-    test_transform = transforms.Compose([transforms.ToTensor(), NORMALIZE_CIFAR])
+    test_transform = transforms.Compose([transforms.ToTensor(), NORMALIZE_CIFAR10])
     test_set = torchvision.datasets.CIFAR10(dataset_directory, train=False, transform=test_transform)
     test_set_loader = torch.utils.data.DataLoader(test_set, 
                                                   batch_size=batch_size, 

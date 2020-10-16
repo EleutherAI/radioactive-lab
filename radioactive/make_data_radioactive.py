@@ -4,26 +4,25 @@
 # This source code is licensed under the CC-by-NC license found in the
 # LICENSE file in the root directory of this source tree.
 #
+import os
+import json
+import glob
+import shutil
+import random
+
 import torch
 import torch.nn as nn
-import json
-import numpy as np
-import os
-import shutil
 import torchvision
 import torchvision.transforms.transforms as transforms
-import random
-import logging
-import glob
+from torch.utils.tensorboard import SummaryWriter
+import numpy as np
 from tqdm.autonotebook import tqdm
 
-from torch.utils.tensorboard import SummaryWriter
+from utils.utils import NORMALIZE_CIFAR10
+import radioactive.differentiable_augmentations as differentiable_augmentations
 
-from utils import NORMALIZE_CIFAR
-import differentiable_augmentations
-from logger import setup_logger_tqdm
-
-# Get an unconfigured logger, will propagate to root we configure in main program
+import logging
+from utils.logger import setup_logger_tqdm
 logger = logging.getLogger(__name__)
 
 
@@ -271,7 +270,7 @@ def get_images_for_marking_cifar10(training_set, tensorboard_log_directory, clas
     tensorboard_summary_writer.add_image('images_for_marking', img_grid)
 
     # Transform and add to list
-    transform = transforms.Compose([transforms.ToTensor(), NORMALIZE_CIFAR])
+    transform = transforms.Compose([transforms.ToTensor(), NORMALIZE_CIFAR10])
     images_for_marking = []
     for index in train_marked_indexes:
         image , _ = training_set[index]
@@ -288,7 +287,7 @@ def get_images_for_marking_multiclass_cifar10(training_set, tensorboard_log_dire
     # Sort images into classes, rewriting the marking code for multi-class is messy
     # Transform and add to dictionary of lists, dictionary index is class id
     # { 0 : [(image1, original_index1),(image2, original_index2)...], 1 : [....] }
-    transform = transforms.Compose([transforms.ToTensor(), NORMALIZE_CIFAR])
+    transform = transforms.Compose([transforms.ToTensor(), NORMALIZE_CIFAR10])
     image_data = {class_id:[] for class_id in range(0, len(training_set.classes))}    
     for index in train_marked_indexes:
         image, label = training_set[index]
@@ -327,8 +326,8 @@ if __name__ == '__main__':
     # Load randomly sampled images from random class along with list of original indexes 
     training_set = torchvision.datasets.CIFAR10(root="experiments/datasets", download=True)
     class_marking_percentage = 10
-    class_id, images, original_indexes = get_images_for_marking(training_set, tensorboard_log_directory, 
-                                                                class_marking_percentage)
+    class_id, images, original_indexes = get_images_for_marking_cifar10(training_set, tensorboard_log_directory, 
+                                                                        class_marking_percentage)
 
     # Marking network is a pretrained resnet18
     marking_network = torchvision.models.resnet18(pretrained=True)
@@ -346,7 +345,7 @@ if __name__ == '__main__':
     batch_size = 32
     output_directory = os.path.join(experiment_directory, "marked_images")
     marked_images = main(output_directory, marking_network, images, original_indexes, carriers, 
-                         class_id, optimizer, tensorboard_log_directory, epochs=epochs, 
+                         class_id, NORMALIZE_CIFAR10, optimizer, tensorboard_log_directory, epochs=epochs, 
                          batch_size=batch_size, overwrite=True)
 
     # Show marked images in Tensorboard

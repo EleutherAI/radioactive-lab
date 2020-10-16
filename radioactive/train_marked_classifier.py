@@ -1,20 +1,21 @@
-import torchvision
-import torchvision.transforms.transforms as transforms
-import torch
-import logging
-from torch.nn import functional as F
 import os
 import re
 import shutil
-from utils import Timer
+
+import torch
+import torchvision
+import torchvision.transforms.transforms as transforms
+from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 from tqdm.autonotebook import tqdm
 
-from dataset_wrappers import MergedDataset
-from utils import NORMALIZE_CIFAR, NORMALIZE_IMAGENET, NORMALIZE_IMAGENETTE
+from radioactive.dataset_wrappers import MergedDataset
+from utils.utils import NORMALIZE_CIFAR10, NORMALIZE_IMAGENET, NORMALIZE_IMAGENETTE
+from utils.utils import Timer
 
-from logger import setup_logger_tqdm
+import logging
+from utils.logger import setup_logger_tqdm
 logger = logging.getLogger(__name__)
 
 # Datasets use pickle, so we can't just pass in a lambda
@@ -47,7 +48,7 @@ def get_data_loaders_cifar10(marked_images_directory, augment, batch_size=512, n
         transforms_list += [transforms.RandomCrop(32, padding=4),
                             transforms.RandomHorizontalFlip()]
     
-    transforms_list += [transforms.ToTensor(), NORMALIZE_CIFAR]
+    transforms_list += [transforms.ToTensor(), NORMALIZE_CIFAR10]
     
     train_transform = transforms.Compose(transforms_list)
     merged_train_set.transform = train_transform
@@ -59,7 +60,7 @@ def get_data_loaders_cifar10(marked_images_directory, augment, batch_size=512, n
                                                    pin_memory=True)
 
     # Test Set (Simple)
-    test_transform = transforms.Compose([transforms.ToTensor(), NORMALIZE_CIFAR])
+    test_transform = transforms.Compose([transforms.ToTensor(), NORMALIZE_CIFAR10])
     test_set = torchvision.datasets.CIFAR10(cifar10_dataset_root, train=False, transform=test_transform)
     test_set_loader = torch.utils.data.DataLoader(test_set, 
                                                   batch_size=batch_size, 
@@ -221,7 +222,6 @@ def main(dataloader_func, model, optimizer_callback, output_directory, tensorboa
 
     # Training Loop
     t = Timer()
-    progress = tqdm(total=epochs, initial=start_epoch, desc="Epochs")
     for epoch in range(start_epoch, epochs):
         t.start()
         logger.info(f"Commence EPOCH {epoch}")
@@ -257,8 +257,6 @@ def main(dataloader_func, model, optimizer_callback, output_directory, tensorboa
         logger.info(f"Average Train Loss: {train_loss}")
         logger.info(f"Top-1 Train Accuracy: {train_accuracy}")
         logger.info(f"Top-1 Test Accuracy: {test_accuracy}")
-        progress.update()
-    progress.close()
 
 from functools import partial
 

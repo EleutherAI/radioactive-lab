@@ -3,7 +3,7 @@ import time
 
 NORMALIZE_IMAGENET = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 NORMALIZE_IMAGENETTE = transforms.Normalize(mean=[0.4618, 0.4571, 0.4288], std=[0.2531, 0.2472, 0.2564])
-NORMALIZE_CIFAR = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010])
+NORMALIZE_CIFAR10 = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010])
 
 class TimerError(Exception):
     """A custom exception used to report errors in use of Timer class"""

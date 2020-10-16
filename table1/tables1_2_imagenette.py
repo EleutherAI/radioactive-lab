@@ -1,11 +1,32 @@
 """
+Table 1
+-------
 1. Train a resnet18 classifier on imagenette
-2. Generate 1, 2, 5, 10% Markings using network from step 1 as marking network.
-3. Create a logistic regression network on the end of the pretrained resnet from step 1.
+2. Generate 1, 2, 5, 10% markings using network from step 1.
+3. Retrain the logistic regression layer on a copy of the pretrained resnet18 using the marked
+   images merged with vanilla images.
    Train it using the radioactive data from step 2.
 4. Perform the radioactive detection p-tests on the network trained in step 3. Compare the top-1 accuracy
-   of this network with the network trained in step 1.
-5. Generate Table 1. "Center Crop" augmentation makes no sense when using CIFAR10 data so this is skipped.
+   of this network with the network downloaded in step 1.
+5. Generate Table 1.
+
+NOTES: We use random crop for training marking network
+       We use differentiable center crop for marking.
+       We use random crop for training the target network.
+
+Table 2
+-------
+1. Train a resnet18 classifier on imagenette
+2. Re-use the marked images generated for Table 1
+3. Train a resnet18 from scratching with marked images merged with vanilla images.
+4. Perform the radioactive detection p-tests on the network trained in step 3. Compare the top-1 accuracy
+   of this network with the network downloaded in step 1.
+5. Generate Table 2.
+
+NOTES: Step 1 and 2 will reuse the data from Table 1 if available.
+       We use random crop for training marking network
+       We use differentiable center crop for marking.
+       We use random crop for training the target network.
 """
 
 import random
@@ -25,15 +46,15 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import cutie
 
-import resnet18_imagenette
-from make_data_radioactive import main as do_marking
-import train_marked_classifier
-from detect_radioactivity import main as detect_radioactivity
-import differentiable_augmentations
-from utils import NORMALIZE_IMAGENETTE
+import resnet18.resnet18_imagenette as resnet18_imagenette
+from radioactive.make_data_radioactive import main as do_marking
+import radioactive.train_marked_classifier as train_marked_classifier
+from radioactive.detect_radioactivity import main as detect_radioactivity
+import radioactive.differentiable_augmentations as differentiable_augmentations
+from utils.utils import NORMALIZE_IMAGENETTE
 
 import logging
-from logger import setup_logger_tqdm
+from utils.logger import setup_logger_tqdm
 logger = logging.getLogger(__name__)
 
 def get_images_for_marking_multiclass(training_set, tensorboard_log_directory, overall_marking_percentage):
@@ -222,6 +243,7 @@ def table_1_work(imagenette_path, step_3_batch_size):
     logger.info("Table 1 Preparation Commencing")
     logger.info("=============================")
     marking_percentages = [1, 2, 5, 10, 20]
+    marking_percentages = [0.1, 0.2, 0.3]
 
     train_images_path = os.path.join(imagenette_path, "train")
     test_images_path = os.path.join(imagenette_path, "val")
@@ -304,6 +326,7 @@ def table_2_work(imagenette_path, step_3_batch_size):
     logger.info("=============================")
 
     marking_percentages = [1, 2, 5, 10, 20]
+    marking_percentages = [0.1, 0.2, 0.3]
 
     train_images_path = os.path.join(imagenette_path, "train")
     test_images_path = os.path.join(imagenette_path, "val")

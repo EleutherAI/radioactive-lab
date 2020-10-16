@@ -1,17 +1,17 @@
 import os
-import numpy as np
 
 import torchvision
 import torchvision.transforms.transforms as transforms
 import torch
 from torch.nn import functional as F
-
-from utils import Timer, NORMALIZE_IMAGENETTE
 from torch.utils.tensorboard import SummaryWriter
+import numpy as np
 from matplotlib import pyplot as plt
 
+from utils.utils import Timer, NORMALIZE_IMAGENETTE
+
 import logging
-from logger import setup_logger_tqdm
+from utils.logger import setup_logger_tqdm
 logger = logging.getLogger()
 
 import tqdm
@@ -93,7 +93,7 @@ def train_model(device, model, train_set_loader, optimizer):
     total = 0
     correct = 0
     total_loss = 0
-    for images, targets in tqdm.tqdm(train_set_loader, desc="Training", position=0):
+    for images, targets in tqdm.tqdm(train_set_loader, desc="Training"):
         total += images.shape[0]
         optimizer.zero_grad()
         images = images.to(device, non_blocking=True)
@@ -117,7 +117,7 @@ def test_model(device, model, test_set_loader, optimizer):
     total = 0
     correct = 0
     with torch.no_grad():
-        for images, targets in tqdm.tqdm(test_set_loader, desc="Testing", position=0):
+        for images, targets in tqdm.tqdm(test_set_loader, desc="Testing"):
             total += images.shape[0]
 
             images = images.to(device, non_blocking=True)
@@ -132,7 +132,7 @@ def test_model(device, model, test_set_loader, optimizer):
 
 def main(optimizer, train_images_path, test_images_path, 
          output_directory, tensorboard_log_directory,
-         lr_scheduler=None, epochs=60, batch_size=16, num_workers=1, test=True): 
+         epochs=60, batch_size=16, num_workers=1, test=True): 
 
     os.makedirs(output_directory, exist_ok=True)
 
@@ -155,9 +155,6 @@ def main(optimizer, train_images_path, test_images_path,
     model.to(device)
     optimizer = optimizer(model.parameters())
 
-    if lr_scheduler:
-        lr_scheduler = lr_scheduler(optimizer)
-
     logger.info(f"Epoch Count: {epochs}")
     logger.info(f"Batch Size: {batch_size}")
 
@@ -177,14 +174,11 @@ def main(optimizer, train_images_path, test_images_path,
 
         model.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        if lr_scheduler:
-            lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])
     else:
         logger.info("No checkpoint found, starting from scratch.")
 
     # Training Loop
     t = Timer()
-    progress = tqdm.tqdm(total=epochs, initial=start_epoch, desc="Epochs", position=1)
     for epoch in range(start_epoch, epochs):
         t.start()
         logger.info("-" * 10)
@@ -201,18 +195,12 @@ def main(optimizer, train_images_path, test_images_path,
         else:
             test_accuracy = "N/A"
 
-        scheduler_dict = None
-        if lr_scheduler:
-            lr_scheduler.step()
-            scheduler_dict = lr_scheduler.state_dict()
-
         # Save Checkpoint
         logger.info("Saving checkpoint.")
         torch.save({
             'epoch': epoch,
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
-            'lr_scheduler_state_dict': scheduler_dict,
             'train_loss': train_loss,
             'train_accuracy': train_accuracy,
             'test_accuracy': test_accuracy
@@ -223,11 +211,7 @@ def main(optimizer, train_images_path, test_images_path,
         logger.info(f"Average Train Loss: {train_loss}")
         logger.info(f"Top-1 Train Accuracy: {train_accuracy}")
         logger.info(f"Top-1 Test Accuracy: {test_accuracy}")
-        progress.update()
-    progress.close()
 
-# Starts off slow at batch size 8, maxes out on 980 ti around 18 seconds per batch
-# Exploded after 552 batch size - setting to 512
 def batch_size_linear_search(train_images_path, test_images_path):
     min = 8
     max = 64
@@ -267,7 +251,7 @@ if __name__ == '__main__':
 
     experiment_name = "adamw_default"
     optimizer = lambda x : torch.optim.AdamW(x)
-    epochs = 150
+    epochs = 60
     output_directory = os.path.join("experiments", "resnet18_imagenette", experiment_name)
     tensorboard_log_directory = os.path.join("runs", "resnet18_imagenette", experiment_name)
     main(optimizer, train_images_path, test_images_path, output_directory, tensorboard_log_directory,

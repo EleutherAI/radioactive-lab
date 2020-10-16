@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from utils import Timer
 from dataset_wrappers import MergedDataset
-from utils import NORMALIZE_CIFAR, NORMALIZE_IMAGENET, NORMALIZE_IMAGENETTE
+from utils import NORMALIZE_CIFAR10, NORMALIZE_IMAGENET, NORMALIZE_IMAGENETTE
 
 import logging
 from logger import setup_logger_tqdm
@@ -50,7 +50,7 @@ def numpy_loader(x):
 #        transforms_list += [transforms.RandomCrop(32, padding=4),
 #                            transforms.RandomHorizontalFlip()]
     
-#    transforms_list += [transforms.ToTensor(), NORMALIZE_CIFAR]
+#    transforms_list += [transforms.ToTensor(), NORMALIZE_CIFAR10]
     
 #    train_transform = transforms.Compose(transforms_list)
 #    merged_train_set.transform = train_transform
@@ -62,7 +62,7 @@ def numpy_loader(x):
 #                                                   pin_memory=True)
 
 #    # Test Set (Simple)
-#    test_transform = transforms.Compose([transforms.ToTensor(), NORMALIZE_CIFAR])
+#    test_transform = transforms.Compose([transforms.ToTensor(), NORMALIZE_CIFAR10])
 #    test_set = torchvision.datasets.CIFAR10(cifar10_dataset_root, train=False, transform=test_transform)
 #    test_set_loader = torch.utils.data.DataLoader(test_set, 
 #                                                  batch_size=batch_size, 

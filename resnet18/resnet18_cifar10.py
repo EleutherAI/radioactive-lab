@@ -1,16 +1,20 @@
+import os
+
+import torch
 import torchvision
 import torchvision.transforms.transforms as transforms
-import torch
-import logging
-from logger import setup_logger_tqdm
 from torch.nn import functional as F
-import os
-from utils import Timer
 from torch.utils.tensorboard import SummaryWriter
+
 from matplotlib import pyplot as plt
 import numpy as np
 
+from utils.utils import Timer
+
+import logging
 logger = logging.getLogger()
+from utils.logger import setup_logger_tqdm
+
 
 # 980ti optimisation, added sequentially on batch size 32:
 # 70 second epochs without any async or pinned memory
@@ -39,16 +43,18 @@ logger = logging.getLogger()
 # Batch Sizing
 # https://medium.com/datadriveninvestor/batch-vs-mini-batch-vs-stochastic-gradient-descent-with-code-examples-cd8232174e14
 # Ran a linear search on batchsize - code below. Over 544 blew up.
+# 512 results in around 18sec epoch time on 980ti, 5 seconds on dgx1
+
+NORMALIZE_CIFAR10 = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010])
 
 def get_data_loaders(batch_size, num_workers):
     dataset_directory = "experiments/datasets" 
 
-    normalize_cifar = transforms.Normalize(mean=[0.4914, 0.4822, 0.4465], std=[0.2023, 0.1994, 0.2010])
     train_transform = transforms.Compose([transforms.RandomCrop(32, padding=4),
                                           transforms.ColorJitter(),
                                           transforms.RandomHorizontalFlip(),
                                           transforms.ToTensor(),
-                                          normalize_cifar])
+                                          NORMALIZE_CIFAR10])
 
     train_set = torchvision.datasets.CIFAR10(dataset_directory, download=True, transform=train_transform)
     train_set_loader = torch.utils.data.DataLoader(train_set,
@@ -59,7 +65,7 @@ def get_data_loaders(batch_size, num_workers):
 
 
 
-    test_transform = transforms.Compose([transforms.ToTensor(), normalize_cifar])
+    test_transform = transforms.Compose([transforms.ToTensor(), NORMALIZE_CIFAR10])
     test_set = torchvision.datasets.CIFAR10(dataset_directory, train=False, transform=test_transform)
     test_set_loader = torch.utils.data.DataLoader(test_set, 
                                                   batch_size=batch_size, 
@@ -69,22 +75,16 @@ def get_data_loaders(batch_size, num_workers):
 
     return train_set_loader, test_set_loader
 
-def train_model(device, model, train_set_loader, optimizer, memory_check_func):
+def train_model(device, model, train_set_loader, optimizer):
     model.train() # For special layers
     total = 0
     correct = 0
     total_loss = 0
-    i = 0
     for images, targets in train_set_loader:
         total += images.shape[0]
         optimizer.zero_grad()
         images = images.to(device, non_blocking=True)
         targets = targets.to(device, non_blocking=True)
-
-        if memory_check_func and i==0:
-            i = 1
-            memory_check_func()
-
         output = model(images)
         loss = F.cross_entropy(output, targets, reduction='mean')
         total_loss += torch.sum(loss)
@@ -100,22 +100,16 @@ def train_model(device, model, train_set_loader, optimizer, memory_check_func):
 
     return average_train_loss, accuracy
 
-def test_model(device, model, test_set_loader, optimizer, memory_check_func):
+def test_model(device, model, test_set_loader, optimizer):
     model.eval() # For special layers
     total = 0
     correct = 0
-    i = 0
     with torch.no_grad():
         for images, targets in test_set_loader:
             total += images.shape[0]
 
             images = images.to(device, non_blocking=True)
             targets = targets.to(device, non_blocking=True)
-
-            if memory_check_func and i==0:
-                i = 1
-                memory_check_func()
-
             outputs = model(images)
 
             _, predicted = torch.max(outputs.data, 1)
@@ -124,9 +118,9 @@ def test_model(device, model, test_set_loader, optimizer, memory_check_func):
     accuracy = 100. * correct.item()/total
     return accuracy
 
-# A simple example of a resnet18 training on CIFAR10 to demonstrate ML training optimization
-def main(experiment_name, optimizer, output_directory_root="experiments/resnet18_on_cifar10",
-         lr_scheduler=None, epochs=150, batch_size=512, num_workers=1, memory_check_func=None):
+# A simple example of a resnet18 training on CIFAR10 to demonstrate ML optimization
+def main(experiment_name, optimizer, output_directory_root="experiments/resnet18_cifar10",
+         lr_scheduler=None, epochs=60, batch_size=512, num_workers=1):
     
     output_directory = os.path.join(output_directory_root, experiment_name)
     if not os.path.isdir(output_directory):
@@ -136,7 +130,7 @@ def main(experiment_name, optimizer, output_directory_root="experiments/resnet18
     logfile_path = os.path.join(output_directory, "logfile.txt")
     setup_logger_tqdm(logfile_path)
 
-    tensorboard_log_directory = os.path.join("runs", experiment_name)
+    tensorboard_log_directory = os.path.join("runs", "resnet18_cifar10", experiment_name)
     tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)
 
     # Choose Training Device
@@ -147,7 +141,7 @@ def main(experiment_name, optimizer, output_directory_root="experiments/resnet18
     # Datasets and Loaders
     train_set_loader, test_set_loader = get_data_loaders(batch_size, num_workers)
 
-    # Create Model & Optimizer (uses Partial Functions)
+    # Create Model & Optimizer
     model = torchvision.models.resnet18(pretrained=False, num_classes=10)
     model.to(device)
     optimizer = optimizer(model.parameters())
@@ -188,11 +182,11 @@ def main(experiment_name, optimizer, output_directory_root="experiments/resnet18
         logger.info(f"Epoch {epoch}")
         logger.info("-" * 10)
 
-        train_loss, train_accuracy = train_model(device, model, train_set_loader, optimizer, memory_check_func)
+        train_loss, train_accuracy = train_model(device, model, train_set_loader, optimizer)
         tensorboard_summary_writer.add_scalar("train_loss", train_loss, epoch)
         tensorboard_summary_writer.add_scalar("train_accuracy", train_accuracy, epoch)
         
-        test_accuracy = test_model(device, model, test_set_loader, optimizer, memory_check_func)
+        test_accuracy = test_model(device, model, test_set_loader, optimizer)
         tensorboard_summary_writer.add_scalar("test_accuracy", test_accuracy, epoch)
 
         scheduler_dict = None
