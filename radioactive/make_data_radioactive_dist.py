@@ -84,11 +84,11 @@ def main(mp_args, images, original_indexes, *args, **kwargs):
 def annoying_wrapper(device, args, kwargs):
     image_slice = torch.load(f"images_{device}.pth")
     index_slice = torch.load(f"indexes_{device}.pth")
+    optimizer = lambda x : torch.optim.AdamW(x)
+    main_dist(image_slice, index_slice, optimizer, *args, **kwargs)
 
-    main_dist(image_slice, index_slice, *args, **kwargs)
-
-def main_dist(images, original_indexes, output_directory, marking_network, carriers, class_id, normalizer,
-         optimizer_fn, tensorboard_log_directory_base, batch_size=32, epochs=90, lambda_1=0.0005, lambda_2=0.01, 
+def main_dist(images, original_indexes, optimizer_fn, output_directory, marking_network, carriers, class_id, normalizer,
+         tensorboard_log_directory_base, batch_size=32, epochs=90, lambda_1=0.0005, lambda_2=0.01, 
          angle=None, half_cone=True, radius=10, overwrite=False, augmentation=None):
     if os.path.isdir(output_directory) and overwrite:
         shutil.rmtree(output_directory)

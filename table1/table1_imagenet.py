@@ -102,15 +102,14 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, 
 
     for class_id, image_list in image_data.items():
         if image_list:
-            images, original_indexes = map(list, zip(*image_list))
-            optimizer = lambda x : torch.optim.AdamW(x)
+            images, original_indexes = map(list, zip(*image_list))            
             epochs = 250
             batch_size = 8
             output_directory = os.path.join(experiment_directory, "marked_images")
             augmentation = differentiable_augmentations.CenterCrop(256, 224)
             tensorboard_class_log = os.path.join(tensorboard_log_directory, f"class_{class_id}")
             do_marking_dist(mp_args, images, original_indexes, output_directory, marking_network, original_indexes, carriers, 
-                            class_id, NORMALIZE_IMAGENET, optimizer, tensorboard_class_log, epochs=epochs, 
+                            class_id, NORMALIZE_IMAGENET, tensorboard_class_log, epochs=epochs, 
                             batch_size=batch_size, overwrite=False, augmentation=augmentation)
 
     # Record marking completion
