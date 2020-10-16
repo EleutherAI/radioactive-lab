@@ -9,6 +9,9 @@ Table 1
 4. Perform the radioactive detection p-tests on the network trained in step 3. Compare the top-1 accuracy
    of this network with the network downloaded in step 1.
 5. Generate Table 1.
+
+NOTES: We use differentiable center crop for marking.
+       We use random crop for training the target network.
 """
 
 import random
@@ -124,7 +127,7 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, 
         fh.write("1")
 
 def calculate_p_values(marking_percentages, batch_size):
-    logfile_path = f"experiments/table{table_number}_imagenet/detect_radioactivity.log"
+    logfile_path = f"experiments/table1_imagenet/detect_radioactivity.log"
     setup_logger_tqdm(logfile_path)
 
     p_values = []
@@ -189,7 +192,7 @@ def main(imagenet_path, step_3_batch_size, mp_args):
     logger.info("")
     logger.info("Step 1 - Download Marking Network")
     logger.info("------------------------------")
-    marking_network = torchvision.models.resnet18(pretrained=False, num_classes=10)
+    marking_network = torchvision.models.resnet18(pretrained=True)
 
     logger.info("")
     logger.info("Step 2 - Image Marking")
