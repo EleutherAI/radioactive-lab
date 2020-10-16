@@ -12,12 +12,12 @@ import torch.distributed as dist
 import numpy as np
 from tqdm import tqdm
 
-from utils import Timer
-from dataset_wrappers import MergedDataset
-from utils import NORMALIZE_CIFAR10, NORMALIZE_IMAGENET, NORMALIZE_IMAGENETTE
+from utils.utils import Timer
+from .dataset_wrappers import MergedDataset
+from utils.utils import NORMALIZE_CIFAR10, NORMALIZE_IMAGENET, NORMALIZE_IMAGENETTE
 
 import logging
-from logger import setup_logger_tqdm
+from utils.logger import setup_logger_tqdm
 logger = logging.getLogger(__name__)
 
 # Datasets use pickle, so we can't just pass in a lambda
