@@ -13,7 +13,7 @@ import numpy as np
 from tqdm import tqdm
 
 from utils.utils import Timer
-from radioactive.dataset_wrappers import MergedDataset
+from .dataset_wrappers import MergedDataset
 from utils.utils import NORMALIZE_CIFAR10, NORMALIZE_IMAGENET, NORMALIZE_IMAGENETTE
 
 import logging
