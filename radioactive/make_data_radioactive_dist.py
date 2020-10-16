@@ -67,7 +67,7 @@ def get_psnr(delta):
 
 
 def main(mp_args, images, original_indexes, *args, **kwargs):
-    images_per_gpu = len(images) / mp_args.gpu
+    images_per_gpu = len(images) / mp_args.gpus
     image_slices = [images[x:x+images_per_gpu] for x in range(0, len(images), images_per_gpu)]
     index_slices = [original_indexes[x:x+images_per_gpu] for x in range(0, len(original_indexes), images_per_gpu)]
 
