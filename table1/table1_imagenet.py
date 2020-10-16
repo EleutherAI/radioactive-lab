@@ -182,8 +182,7 @@ def generate_table_1(marking_percentages, p_values, vanilla_accuracy):
 def main(imagenet_path, step_3_batch_size, mp_args):
     logger.info("Table 1 Preparation Commencing")
     logger.info("=============================")
-    marking_percentages = [1, 2, 5, 10, 20]
-    marking_percentages = [0.1]
+    marking_percentages = [1, 2, 5, 10]
 
     train_images_path = os.path.join(imagenet_path, "train")
     test_images_path = os.path.join(imagenet_path, "val")
@@ -235,7 +234,7 @@ def main(imagenet_path, step_3_batch_size, mp_args):
         model.fc = nn.Linear(model.fc.in_features, num_classes)
         optimizer = train_marked_classifier_dist.adamw_logistic     
 
-        epochs = 13
+        epochs = 20
         dataloader_func = partial(train_marked_classifier_dist.get_data_loaders_imagenet, 
                                   train_images_path, test_images_path, marked_images_directory, step_3_batch_size, 1)
 
