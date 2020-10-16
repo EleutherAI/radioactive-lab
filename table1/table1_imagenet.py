@@ -20,6 +20,7 @@ import glob
 import shutil
 from functools import partial
 import argparse
+from multiprocessing import Pool
 
 import torch
 import torchvision
@@ -31,6 +32,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 import cutie
+from tqdm_multiprocess import TqdmMultiProcessPool
 
 from radioactive.make_data_radioactive import main as do_marking
 import radioactive.train_marked_classifier_dist as train_marked_classifier_dist
@@ -71,8 +73,24 @@ def get_images_for_marking_multiclass(training_set, tensorboard_log_directory, o
 
     return image_data
 
+def multi_do_marking(experiment_directory, tensorboard_log_directory,
+                     marking_network, training_set, image_list, carriers, class_id):
+    images, original_indexes = map(list, zip(*image_list))
+    optimizer = lambda x : torch.optim.AdamW(x)
+    epochs = 250
+    batch_size = 8
+    output_directory = os.path.join(experiment_directory, "marked_images")
+    augmentation = differentiable_augmentations.CenterCrop(256, 224)
+    tensorboard_class_log = os.path.join(tensorboard_log_directory, f"class_{class_id}")
+    marked_images_temp = do_marking(output_directory, marking_network, images, original_indexes, carriers, 
+                                    class_id, NORMALIZE_IMAGENET, optimizer, tensorboard_class_log, epochs=epochs, 
+                                    batch_size=batch_size, overwrite=False, augmentation=augmentation)
+            
+    marked_images =  marked_images + marked_images_temp
+
+# Doesn't work on multi-pc
 def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, tensorboard_log_directory,
-                              marking_network, training_set):
+                              marking_network, training_set, mp_args):
 
     # Setup experiment directory
     if os.path.isdir(experiment_directory):
@@ -98,21 +116,22 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, 
                                                    tensorboard_log_directory,
                                                    overall_marking_percentage)
 
-    marked_images = []
+    pool = TqdmMultiProcessPool()
+    tasks = []
     for class_id, image_list in image_data.items():
         if image_list:
-            images, original_indexes = map(list, zip(*image_list))
-            optimizer = lambda x : torch.optim.AdamW(x)
-            epochs = 250
-            batch_size = 8
-            output_directory = os.path.join(experiment_directory, "marked_images")
-            augmentation = differentiable_augmentations.CenterCrop(256, 224)
-            tensorboard_class_log = os.path.join(tensorboard_log_directory, f"class_{class_id}")
-            marked_images_temp = do_marking(output_directory, marking_network, images, original_indexes, carriers, 
-                                            class_id, NORMALIZE_IMAGENET, optimizer, tensorboard_class_log, epochs=epochs, 
-                                            batch_size=batch_size, overwrite=False, augmentation=augmentation)
-            
-            marked_images =  marked_images + marked_images_temp   
+            arguments = (experiment_directory, tensorboard_log_directory,
+                         marking_network, training_set, image_list, carriers, class_id)
+            task = (multi_do_marking, arguments)
+            tasks.append(task)
+
+    on_done = lambda _ : None
+    on_error = lambda _ : None
+    results = pool.map(mp_args.gpus, None, tasks, on_error, on_done)
+    marked_images = []
+    for result in results:
+        marked_images = marked_images + result
+    results = None
 
     # Show marked images in Tensorboard - centercrop for grid
     from PIL import Image as im 
@@ -213,7 +232,7 @@ def main(imagenet_path, step_3_batch_size, mp_args):
         shutil.rmtree(experiment_directory, ignore_errors=True)
         shutil.rmtree(tensorboard_log_directory, ignore_errors=True)
         do_marking_run_multiclass(marking_percentage, experiment_directory, tensorboard_log_directory,
-                                  marking_network, training_set)
+                                  marking_network, training_set, mp_args)
 
     logger.info("")
     logger.info("Step 3 - Training Target Networks")
@@ -249,7 +268,7 @@ def main(imagenet_path, step_3_batch_size, mp_args):
     logger.info("-----------------------------")
     test_set_loader = train_marked_classifier_dist.get_imagenet_test_loader(test_images_path, NORMALIZE_IMAGENET, 
                                                                                batch_size=step_3_batch_size)
-    p_values = calculate_p_values(marking_percentages, 1, step_3_batch_size, False, None)
+    p_values = calculate_p_values(marking_percentages, step_3_batch_size)
     torch.save(p_values, p_values_file)
     p_values = torch.load(p_values_file)
 
