@@ -202,6 +202,8 @@ def main(imagenet_path, step_3_batch_size, mp_args):
     logger.info("Table 1 Preparation Commencing")
     logger.info("=============================")
     marking_percentages = [1, 2, 5, 10]
+    marking_percentages = [5, 10]
+
 
     train_images_path = os.path.join(imagenet_path, "train")
     test_images_path = os.path.join(imagenet_path, "val")
