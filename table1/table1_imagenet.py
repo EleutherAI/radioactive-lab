@@ -20,7 +20,6 @@ import glob
 import shutil
 from functools import partial
 import argparse
-from multiprocessing import Pool
 
 import torch
 import torchvision
@@ -32,9 +31,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 import cutie
-from tqdm_multiprocess import TqdmMultiProcessPool
 
-from radioactive.make_data_radioactive import main as do_marking
+from radioactive.make_data_radioactive_dist import main as do_marking_dist
 import radioactive.train_marked_classifier_dist as train_marked_classifier_dist
 from radioactive.detect_radioactivity import main as detect_radioactivity
 import radioactive.differentiable_augmentations as differentiable_augmentations
@@ -73,21 +71,6 @@ def get_images_for_marking_multiclass(training_set, tensorboard_log_directory, o
 
     return image_data
 
-def multi_do_marking(experiment_directory, tensorboard_log_directory,
-                     marking_network, training_set, image_list, carriers, class_id):
-    images, original_indexes = map(list, zip(*image_list))
-    optimizer = lambda x : torch.optim.AdamW(x)
-    epochs = 250
-    batch_size = 8
-    output_directory = os.path.join(experiment_directory, "marked_images")
-    augmentation = differentiable_augmentations.CenterCrop(256, 224)
-    tensorboard_class_log = os.path.join(tensorboard_log_directory, f"class_{class_id}")
-    marked_images_temp = do_marking(output_directory, marking_network, images, original_indexes, carriers, 
-                                    class_id, NORMALIZE_IMAGENET, optimizer, tensorboard_class_log, epochs=epochs, 
-                                    batch_size=batch_size, overwrite=False, augmentation=augmentation)
-            
-    marked_images =  marked_images + marked_images_temp
-
 # Doesn't work on multi-pc
 def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, tensorboard_log_directory,
                               marking_network, training_set, mp_args):
@@ -116,30 +99,19 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, 
                                                    tensorboard_log_directory,
                                                    overall_marking_percentage)
 
-    pool = TqdmMultiProcessPool()
-    tasks = []
+
     for class_id, image_list in image_data.items():
         if image_list:
-            arguments = (experiment_directory, tensorboard_log_directory,
-                         marking_network, training_set, image_list, carriers, class_id)
-            task = (multi_do_marking, arguments)
-            tasks.append(task)
-
-    on_done = lambda _ : None
-    on_error = lambda _ : None
-    results = pool.map(mp_args.gpus, None, tasks, on_error, on_done)
-    marked_images = []
-    for result in results:
-        marked_images = marked_images + result
-    results = None
-
-    # Show marked images in Tensorboard - centercrop for grid
-    from PIL import Image as im 
-    tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)
-    transform = transforms.Compose([transforms.CenterCrop(256), transforms.ToTensor()])
-    images_for_tensorboard = [transform(im.fromarray(x)) for x in marked_images]
-    img_grid = torchvision.utils.make_grid(images_for_tensorboard, nrow=3)
-    tensorboard_summary_writer.add_image('marked_images', img_grid)
+            images, original_indexes = map(list, zip(*image_list))
+            optimizer = lambda x : torch.optim.AdamW(x)
+            epochs = 250
+            batch_size = 8
+            output_directory = os.path.join(experiment_directory, "marked_images")
+            augmentation = differentiable_augmentations.CenterCrop(256, 224)
+            tensorboard_class_log = os.path.join(tensorboard_log_directory, f"class_{class_id}")
+            do_marking_dist(mp_args, images, original_indexes, output_directory, marking_network, original_indexes, carriers, 
+                            class_id, NORMALIZE_IMAGENET, optimizer, tensorboard_class_log, epochs=epochs, 
+                            batch_size=batch_size, overwrite=False, augmentation=augmentation)
 
     # Record marking completion
     with open(os.path.join(experiment_directory, "marking.complete"),"w") as fh:
