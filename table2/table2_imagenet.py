@@ -153,6 +153,7 @@ def main(imagenet_path, step_3_batch_size, mp_args):
         # Train resnet18 from scratch
         model = torchvision.models.resnet18(pretrained=False, num_classes=10)
         optimizer = lambda model : torch.optim.AdamW(model.parameters())
+        optimizer = train_marked_classifier_dist.adamw_full
 
         epochs = 60
         dataloader_func = partial(train_marked_classifier_dist.get_data_loaders_imagenet, 

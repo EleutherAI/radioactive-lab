@@ -196,6 +196,9 @@ def test_model(device, model, test_set_loader):
 def adamw_logistic(model):
     return torch.optim.AdamW(model.fc.parameters())
 
+def adamw_full(model):
+    return torch.optim.AdamW(model.parameters())
+
 def main(device, mp_args, dataloader_func, model, optimizer_callback, output_directory, tensorboard_log_directory, 
          epochs):
 

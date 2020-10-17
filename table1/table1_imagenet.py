@@ -224,7 +224,7 @@ def main(imagenet_path, step_3_batch_size, mp_args):
             param.requires_grad = False
         num_classes = 10
         model.fc = nn.Linear(model.fc.in_features, num_classes)
-        optimizer = train_marked_classifier_dist.adamw_logistic     
+        optimizer = train_marked_classifier_dist.adamw_logistic
 
         epochs = 20
         dataloader_func = partial(train_marked_classifier_dist.get_data_loaders_imagenet, 
