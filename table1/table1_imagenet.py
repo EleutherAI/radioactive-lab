@@ -106,7 +106,9 @@ def do_marking_run_multiclass(overall_marking_percentage, experiment_directory, 
             epochs = 250
             batch_size = 8
             output_directory = os.path.join(experiment_directory, "marked_images")
-            augmentation = differentiable_augmentations.CenterCrop(256, 224)
+            #augmentation = differentiable_augmentations.CenterCrop(256, 224)
+            augmentation = differentiable_augmentations.RandomResizedCropFlip(256)
+
             tensorboard_class_log = os.path.join(tensorboard_log_directory, f"class_{class_id}")
             do_marking_dist(mp_args, images, original_indexes, output_directory, marking_network, carriers, 
                             class_id, NORMALIZE_IMAGENET, tensorboard_class_log, epochs=epochs, 
