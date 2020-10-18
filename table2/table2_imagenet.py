@@ -42,7 +42,7 @@ import logging
 from utils.logger import setup_logger_tqdm
 logger = logging.getLogger(__name__)
 
-def calculate_p_values(marking_percentages, batch_size):
+def calculate_p_values(marking_percentages, batch_size, test_set_loader):
     logfile_path = f"experiments/table2_imagenet/detect_radioactivity.log"
     setup_logger_tqdm(logfile_path)
 
@@ -166,7 +166,7 @@ def main(imagenet_path, step_3_batch_size, mp_args):
     logger.info("-----------------------------")
     test_set_loader = train_marked_classifier_dist.get_imagenet_test_loader(test_images_path, NORMALIZE_IMAGENET, 
                                                                             batch_size=step_3_batch_size)
-    p_values = calculate_p_values(marking_percentages, step_3_batch_size)  
+    p_values = calculate_p_values(marking_percentages, step_3_batch_size, test_set_loader)  
     torch.save(p_values, p_values_file)
     p_values = torch.load(p_values_file)
 
