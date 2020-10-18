@@ -10,7 +10,7 @@ Table 1
    of this network with the network downloaded in step 1.
 5. Generate Table 1.
 
-NOTES: We use differentiable center crop for marking.
+NOTES: We use differentiable random crop for marking.
        We use random crop for training the target network.
 """
 

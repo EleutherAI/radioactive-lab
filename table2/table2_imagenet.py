@@ -9,7 +9,7 @@ Table 2
 5. Generate Table 2.
 
 NOTES: Step 2 will reuse the data from Table 1 if available.
-       We use differentiable center crop for marking.
+       We use differentiable random crop for marking.
        We use random crop for training the target network.
 """
 
