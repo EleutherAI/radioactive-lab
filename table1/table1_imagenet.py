@@ -285,5 +285,5 @@ if __name__ == '__main__':
     mp_args.gpus = args.gpus
     mp_args.world_size = args.gpus * args.nodes
 
-    main(args.imagenet_path, args.batch_size_step_3, mp_args. args.num_classes)
+    main(args.imagenet_path, args.batch_size_step_3, mp_args, args.num_classes)
 
