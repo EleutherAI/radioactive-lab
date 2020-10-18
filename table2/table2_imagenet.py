@@ -36,7 +36,7 @@ from radioactive.make_data_radioactive import main as do_marking
 import radioactive.train_marked_classifier_dist as train_marked_classifier_dist
 from radioactive.detect_radioactivity import main as detect_radioactivity
 import radioactive.differentiable_augmentations as differentiable_augmentations
-from utils import NORMALIZE_IMAGENET
+from utils.utils import NORMALIZE_IMAGENET
 
 import logging
 from utils.logger import setup_logger_tqdm
