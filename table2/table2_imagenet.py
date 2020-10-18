@@ -185,7 +185,7 @@ parser_description = 'Perform experiments and generate Table 1 and 2 for imagene
 parser = argparse.ArgumentParser(description=parser_description)
 parser.add_argument("-dir", "--imagenet_path", default="E:/imagenet2/")
 parser.add_argument("-bs", "--batch_size_step_3", type=int, default=16)
-parser.add_argument("-classes", "--num_classes", type=int, defualt=1000)
+parser.add_argument("-classes", "--num_classes", type=int, default=1000)
 parser.add_argument('-n', '--nodes', default=1, type=int, metavar='N',
                     help='number of data loading workers (default: 1)')
 parser.add_argument('-g', '--gpus', default=1, type=int,
