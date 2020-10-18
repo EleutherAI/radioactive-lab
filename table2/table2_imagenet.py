@@ -103,7 +103,7 @@ def generate_table_2(marking_percentages, p_values, vanilla_accuracy):
     plt.savefig("experiments/table2_imagenet/table2.png")
     plt.show()
 
-def main(imagenet_path, step_3_batch_size, mp_args, num_classes):
+def main(imagenet_path, step_3_batch_size, mp_args):
     logger.info("")
     logger.info("Table 2 Preparation Commencing")
     logger.info("=============================")
@@ -151,7 +151,7 @@ def main(imagenet_path, step_3_batch_size, mp_args, num_classes):
         tensorboard_log_directory = os.path.join("runs", "table2_imagenet", f"{marking_percentage}_percent", "target")
 
         # Train resnet18 from scratch
-        model = torchvision.models.resnet18(pretrained=False, num_classes=num_classes)
+        model = torchvision.models.resnet18(pretrained=False, num_classes=len(training_set.classes))
         optimizer = lambda model : torch.optim.AdamW(model.parameters())
         optimizer = train_marked_classifier_dist.adamw_full
 
@@ -166,7 +166,7 @@ def main(imagenet_path, step_3_batch_size, mp_args, num_classes):
     logger.info("-----------------------------")
     test_set_loader = train_marked_classifier_dist.get_imagenet_test_loader(test_images_path, NORMALIZE_IMAGENET, 
                                                                             batch_size=step_3_batch_size)
-    p_values = calculate_p_values(marking_percentages, step_3_batch_size, test_set_loader, num_classes)  
+    p_values = calculate_p_values(marking_percentages, step_3_batch_size, test_set_loader, len(training_set.classes))  
     torch.save(p_values, p_values_file)
     p_values = torch.load(p_values_file)
 
@@ -185,7 +185,6 @@ parser_description = 'Perform experiments and generate Table 1 and 2 for imagene
 parser = argparse.ArgumentParser(description=parser_description)
 parser.add_argument("-dir", "--imagenet_path", default="E:/imagenet2/")
 parser.add_argument("-bs", "--batch_size_step_3", type=int, default=16)
-parser.add_argument("-classes", "--num_classes", type=int, default=1000)
 parser.add_argument('-n', '--nodes', default=1, type=int, metavar='N',
                     help='number of data loading workers (default: 1)')
 parser.add_argument('-g', '--gpus', default=1, type=int,
@@ -211,5 +210,5 @@ if __name__ == '__main__':
     mp_args.gpus = args.gpus
     mp_args.world_size = args.gpus * args.nodes
 
-    main(args.imagenet_path, args.batch_size_step_3, mp_args, args.num_classes)
+    main(args.imagenet_path, args.batch_size_step_3, mp_args)
 

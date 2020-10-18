@@ -171,7 +171,7 @@ def generate_table_1(marking_percentages, p_values, vanilla_accuracy):
     plt.savefig("experiments/table1_imagenet/table1.png")
     plt.show()
 
-def main(imagenet_path, step_3_batch_size, mp_args, num_classes):
+def main(imagenet_path, step_3_batch_size, mp_args):
     logger.info("Table 1 Preparation Commencing")
     logger.info("=============================")
     marking_percentages = [1, 2, 5, 10]
@@ -221,8 +221,9 @@ def main(imagenet_path, step_3_batch_size, mp_args, num_classes):
 
         # Retrain the fully connected layer only
         for param in model.parameters():
-            param.requires_grad = False  
-        model.fc = nn.Linear(model.fc.in_features, num_classes)
+            param.requires_grad = False
+        
+        model.fc = nn.Linear(model.fc.in_features, len(training_set.classes))
         optimizer = train_marked_classifier_dist.adamw_logistic
 
         epochs = 20
@@ -259,7 +260,6 @@ parser_description = 'Perform experiments and generate Table 1 and 2 for imagene
 parser = argparse.ArgumentParser(description=parser_description)
 parser.add_argument("-dir", "--imagenet_path", default="E:/imagenet2/")
 parser.add_argument("-bs", "--batch_size_step_3", type=int, default=16)
-parser.add_argument("-classes", "--num_classes", type=int, default=1000)
 parser.add_argument('-n', '--nodes', default=1, type=int, metavar='N',
                     help='number of data loading workers (default: 1)')
 parser.add_argument('-g', '--gpus', default=1, type=int,
@@ -285,5 +285,5 @@ if __name__ == '__main__':
     mp_args.gpus = args.gpus
     mp_args.world_size = args.gpus * args.nodes
 
-    main(args.imagenet_path, args.batch_size_step_3, mp_args, args.num_classes)
+    main(args.imagenet_path, args.batch_size_step_3, mp_args)
 
