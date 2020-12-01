@@ -1,6 +1,7 @@
 import logging
 import time
 from datetime import timedelta
+from tqdm import tqdm
 
 class LogFormatter():
 
@@ -45,3 +46,33 @@ def setup_logger(filepath=None, to_console=True, formatter=LogFormatter()):
         console_handler.setLevel(logging.INFO)
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
+
+class TqdmHandler(logging.StreamHandler):
+    def __init__(self):
+        logging.StreamHandler.__init__(self)
+
+    def emit(self, record):
+        msg = self.format(record)
+        tqdm.write(msg)
+
+def setup_logger_tqdm(filepath=None, formatter=LogFormatter()):
+
+    # create logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
+
+    logger.handlers = []    
+
+    # create file handler
+    if filepath is not None:
+        file_handler = logging.FileHandler(filepath, "a")
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+    # create tqdm handler
+    tqdm_handler = TqdmHandler()
+    tqdm_handler.setLevel(logging.INFO)
+    tqdm_handler.setFormatter(formatter)
+    logger.addHandler(tqdm_handler)

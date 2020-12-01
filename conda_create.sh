@@ -1,0 +1,1 @@
+conda create --name radioactive python=3.8 -y

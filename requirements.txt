@@ -1,3 +1,8 @@
 future
 tensorboard
 jupyter
+matplotlib
+cutie
+colorama
+pytorch-lightning
+tqdm-multiprocess

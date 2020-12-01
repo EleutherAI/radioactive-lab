@@ -4,25 +4,25 @@
 # This source code is licensed under the CC-by-NC license found in the
 # LICENSE file in the root directory of this source tree.
 #
+import os
+import json
+import glob
+import shutil
+import random
+
 import torch
 import torch.nn as nn
-import json
-import numpy as np
-import os
-import shutil
 import torchvision
 import torchvision.transforms.transforms as transforms
-import random
-import logging
-import glob
-
 from torch.utils.tensorboard import SummaryWriter
+import numpy as np
+from tqdm.autonotebook import tqdm
 
-from utils import NORMALIZE_CIFAR
-from differentiable_augmentations import RandomResizedCropFlip
-from logger import setup_logger
+from utils.utils import NORMALIZE_CIFAR10
+import radioactive.differentiable_augmentations as differentiable_augmentations
 
-# Get an unconfigured logger, will propagate to root we configure in main program
+import logging
+from utils.logger import setup_logger_tqdm
 logger = logging.getLogger(__name__)
 
 
@@ -61,30 +61,28 @@ def project_linf(x, y, radius, std):
     return y + delta
 
 
-def psnr(delta):
+def get_psnr(delta):
     return 20 * np.log10(255) - 10 * np.log10(np.mean(delta**2))
 
 
-def main(experiment_directory, marking_network, images, original_indexes, carriers, class_id,
-         overwrite=False, batch_size=32, optimizer_fn=None, angle=None, half_cone=True, radius=10, lambda_1=0.0005, 
-         lambda_2=0.01, epochs=90):
+# Supports one class at a time - just run multiple times
+def main(output_directory, marking_network, images, original_indexes, carriers, class_id, normalizer,
+         optimizer_fn, tensorboard_log_directory_base, batch_size=32, epochs=90, lambda_1=0.0005, lambda_2=0.01, 
+         angle=None, half_cone=True, radius=10, overwrite=False, augmentation=None):
 
-    # Ensure we don't overwrite previous marked images if not desired
-    output_directory = os.path.join(experiment_directory, "marked_images")
-    if os.path.isdir(output_directory):
-        if overwrite:
-            shutil.rmtree(output_directory, ignore_errors=True)
-        else:                
-            raise FileExistsError(f"Image output directory {output_directory} already exists." \
-               "Set overwrite=True if this is what you desire.")
+    if os.path.isdir(output_directory) and overwrite:
+        shutil.rmtree(output_directory)
+        #else:                
+        #    raise FileExistsError(f"Image output directory {output_directory} already exists." \
+        #       "Set overwrite=True if this is what you desire.")
 
     # Save the images in their respective class - We use torchvision.datasets.datasetfolder in training classifier
-    output_directory = os.path.join(experiment_directory, "marked_images", str(class_id))
+    output_directory = os.path.join(output_directory, str(class_id))
     os.makedirs(output_directory, exist_ok=True)
 
     # Reshape the mean and std for later use
-    mean = torch.Tensor(NORMALIZE_CIFAR.mean).view(-1, 1, 1)
-    std = torch.Tensor(NORMALIZE_CIFAR.std).view(-1, 1, 1)
+    mean = torch.Tensor(normalizer.mean).view(-1, 1, 1)
+    std = torch.Tensor(normalizer.std).view(-1, 1, 1)
 
     # Setup Device
     use_cuda = torch.cuda.is_available()
@@ -98,7 +96,6 @@ def main(experiment_directory, marking_network, images, original_indexes, carrie
     marking_network.eval()   
 
     # Loading carriers - Here we slice the full carrier array to get the vector u for our class
-    # Multi-class training is currently NOT supported in the loop below, so we just slice out the relevant u vector
     logger.info(f"Slicing carrier for class id {class_id}")
     direction = carriers.to(device)
     assert direction.dim() == 2
@@ -111,11 +108,6 @@ def main(experiment_directory, marking_network, images, original_indexes, carrie
 
     img_orig = images
     img = [x.clone() for x in img_orig]
-
-    # Load differentiable data augmentations, allowing gradients to backprop
-    #center_da = CenterCrop(scaled_image_size, crop_size) # Unused for CIFAR10
-    #random_da = RandomResizedCropFlip(crop_size)
-    data_augmentation = RandomResizedCropFlip(28) # Crop from 32 to 28
 
     # Turn on backpropagation for the images to allow marking
     logger.info(f"Enabling gradient on the images")
@@ -138,28 +130,37 @@ def main(experiment_directory, marking_network, images, original_indexes, carrie
         # Setup optimizer on images
         optimizer = optimizer_fn(img_slice)
 
-        # Get original features - Facebook code had differentiable rescale we don't need for CIFAR10
-        logger.info("Getting original features")
-        img_orig_slice_tensor = torch.cat(img_orig_slice, dim=0).to(device)        
-        ft_orig = marking_network(img_orig_slice_tensor).detach() # Remove from graph
+        # Get original features
+        logger.info("Getting original features")        
+        if augmentation:
+            # Center crop required here - for imagenette
+            center_da = differentiable_augmentations.CenterCrop(256, 224)
+            img_center = torch.cat([center_da(x, 0).cuda(non_blocking=True) for x in img_orig_slice], dim=0)
+            ft_orig = marking_network(img_center).detach()
+        else:
+            # CIFAR10
+            img_orig_slice_tensor = torch.cat(img_orig_slice, dim=0).to(device)        
+            ft_orig = marking_network(img_orig_slice_tensor).detach() # Remove from graph
 
         #if params.angle is not None:
         #    ft_orig = torch.load("/checkpoint/asablayrolles/radioactive_data/imagenet_ckpt_2/features/valid_resnet18_center.pth").cuda()
 
-        tensorboard_log_directory = f"runs/radioactive_batch{batch_number}"
+        tensorboard_log_directory = os.path.join(f"{tensorboard_log_directory_base}", f"batch{batch_number}")
         tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)
 
-        for iteration in range(epochs):
-            # Differentially augment images
-            logger.info("Augmenting images")
+        for iteration in tqdm(range(epochs)):
             batch = []
             for x in img_slice:
-                aug_params = data_augmentation.sample_params(x)
-                aug_img = data_augmentation(x, aug_params)
-                batch.append(aug_img)
+                if augmentation:
+                    # Differentiable augment
+                    aug_params = augmentation.sample_params(x)
+                    aug_img = augmentation(x, aug_params)
+                    batch.append(aug_img)
+                else:
+                    batch.append(x)
             batch = torch.cat(batch).to(device)
 
-            # Forward augmented images
+            # Forward images
             ft = marking_network(batch)
 
             # Loss - See section 3.3 in the paper. 
@@ -195,11 +196,14 @@ def main(experiment_directory, marking_network, images, original_indexes, carrie
             }
 
             tensorboard_summary_writer.add_scalar("train_loss", loss.item(), iteration)
+            tensorboard_summary_writer.add_scalar("alignment_loss", loss_ft.item(), iteration)
+            tensorboard_summary_writer.add_scalar("image_diff_loss", loss_norm.item(), iteration)
+            tensorboard_summary_writer.add_scalar("feature_diff_loss", loss_ft_l2.item(), iteration)
 
             #if angle is not None:
             #    logs["R"] = - (loss_ft + loss_ft_l2).item()
 
-            logger.info("__log__:%s" % json.dumps(logs))
+            #logger.info("__log__:%s" % json.dumps(logs))
 
             for i in range(len(img_slice)):
                 img_slice[i].data[0] = project_linf(img_slice[i].data[0], img_orig_slice[i][0], radius, std)
@@ -209,18 +213,24 @@ def main(experiment_directory, marking_network, images, original_indexes, carrie
         img_new = [numpy_pixel(x.data[0], mean, std).astype(np.float32) for x in img_slice]
         img_old = [numpy_pixel(x[0], mean, std).astype(np.float32) for x in img_orig_slice]
 
-        img_totest = torch.cat(img_slice).to(device)
+        if augmentation:
+            img_totest = torch.cat([center_da(x, 0).cuda(non_blocking=True) for x in img_slice], dim=0).to(device)
+        else:
+            img_totest = torch.cat(img_slice).to(device)
+
         with torch.no_grad():
             ft_new = marking_network(img_totest)
 
-        logger.info("__log__:%s" % json.dumps({
-            "keyword": "final",
-            "psnr": np.mean([psnr(x_new - x_old) for x_new, x_old in zip(img_new, img_old)]),
-            "ft_direction": torch.mv(ft_new - ft_orig, direction[0]).mean().item(),
-            "ft_norm": torch.norm(ft_new - ft_orig, dim=1).mean().item(),
-            "rho": rho,
-            "R": (rho * torch.dot(ft_new[0] - ft_orig[0], direction[0])**2 - torch.norm(ft_new - ft_orig)**2).item(),
-        }))
+        # Batch Summary Info
+        psnr = np.mean([get_psnr(x_new - x_old) for x_new, x_old in zip(img_new, img_old)])
+        ft_direction = torch.mv(ft_new - ft_orig, direction[0]).mean().item()
+        ft_norm = torch.norm(ft_new - ft_orig, dim=1).mean().item()
+        R = (rho * torch.dot(ft_new[0] - ft_orig[0], direction[0])**2 - torch.norm(ft_new - ft_orig)**2).item()
+        logger.info(f"psnr: {psnr}")
+        logger.info(f"ft_direction: {ft_direction}")
+        logger.info(f"ft_norm: {ft_norm}")
+        logger.info(f"rho: {rho}")
+        logger.info(f"R: {R}")
 
         for i, img_to_save in enumerate(img_new):
             img_to_save = img_to_save.astype(np.uint8)
@@ -236,7 +246,7 @@ def main(experiment_directory, marking_network, images, original_indexes, carrie
     return images_for_tensorboard
 
 
-def get_images_for_marking(training_set, class_marking_percentage=10):
+def get_images_for_marking_cifar10(training_set, tensorboard_log_directory, class_marking_percentage):
 
     # Index images by class
     images_by_class = [[] for x in training_set.classes]
@@ -251,8 +261,7 @@ def get_images_for_marking(training_set, class_marking_percentage=10):
     total_marked_in_class = int(len(images_by_class[chosen_image_class]) * (class_marking_percentage / 100))
     train_marked_indexes = random.sample(images_by_class[chosen_image_class], total_marked_in_class)
 
-    # Save to tensorboard for funs - never use pyplot for grids, so slow....
-    tensorboard_log_directory = "runs/radioactive"
+    # Save to tensorboard - never use pyplot for grids, so slow....
     tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)
     images = []
     for index in train_marked_indexes:
@@ -261,14 +270,42 @@ def get_images_for_marking(training_set, class_marking_percentage=10):
     tensorboard_summary_writer.add_image('images_for_marking', img_grid)
 
     # Transform and add to list
-    transform = transforms.Compose([transforms.ToTensor(), NORMALIZE_CIFAR])
+    transform = transforms.Compose([transforms.ToTensor(), NORMALIZE_CIFAR10])
     images_for_marking = []
     for index in train_marked_indexes:
         image , _ = training_set[index]
         images_for_marking.append(transform(image).unsqueeze(0))
 
-    return images_for_marking, train_marked_indexes
+    return chosen_image_class, images_for_marking, train_marked_indexes
 
+def get_images_for_marking_multiclass_cifar10(training_set, tensorboard_log_directory, overall_marking_percentage):
+
+    # Randomly sample images
+    total_marked_images = int(len(training_set) * (overall_marking_percentage / 100))
+    train_marked_indexes = random.sample(range(0, len(training_set)), total_marked_images)
+
+    # Sort images into classes, rewriting the marking code for multi-class is messy
+    # Transform and add to dictionary of lists, dictionary index is class id
+    # { 0 : [(image1, original_index1),(image2, original_index2)...], 1 : [....] }
+    transform = transforms.Compose([transforms.ToTensor(), NORMALIZE_CIFAR10])
+    image_data = {class_id:[] for class_id in range(0, len(training_set.classes))}    
+    for index in train_marked_indexes:
+        image, label = training_set[index]
+        image_data[label].append((transform(image).unsqueeze(0), index))
+
+    # Save to tensorboard - sorted by class, original_index
+    tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)
+    images = []
+    for class_id, image_list in image_data.items():
+        if image_list:
+            _, original_indexes = zip(*image_list)
+            original_indexes = list(original_indexes)
+            for index in original_indexes:
+                images.append(transforms.ToTensor()(training_set.data[index]))
+    img_grid = torchvision.utils.make_grid(images, nrow=16)
+    tensorboard_summary_writer.add_image('images_for_marking', img_grid)
+
+    return image_data
 
 if __name__ == '__main__':
 
@@ -278,17 +315,19 @@ if __name__ == '__main__':
         os.makedirs(experiment_directory)
 
     logfile_path = os.path.join(experiment_directory, 'marking.log')
-    setup_logger(filepath=logfile_path)
+    setup_logger_tqdm(filepath=logfile_path)
 
     # Clear old tensorboard logs
-    our_tensorboard_logs = glob.glob('runs/radioactive*')
+    our_tensorboard_logs = glob.glob('runs/radioactive*') # main creates extra log dirs
     for tensorboard_log in our_tensorboard_logs:
-        shutil.rmtree(tensorboard_log, ignore_errors=True)
+        shutil.rmtree(tensorboard_log)
+    tensorboard_log_directory="runs/radioactive"
 
     # Load randomly sampled images from random class along with list of original indexes 
     training_set = torchvision.datasets.CIFAR10(root="experiments/datasets", download=True)
     class_marking_percentage = 10
-    images, original_indexes = get_images_for_marking(training_set, class_marking_percentage=class_marking_percentage)
+    class_id, images, original_indexes = get_images_for_marking_cifar10(training_set, tensorboard_log_directory, 
+                                                                        class_marking_percentage)
 
     # Marking network is a pretrained resnet18
     marking_network = torchvision.models.resnet18(pretrained=True)
@@ -297,19 +336,19 @@ if __name__ == '__main__':
     marking_network_fc_feature_size = 512
     carriers = torch.randn(len(training_set.classes), marking_network_fc_feature_size)
     carriers /= torch.norm(carriers, dim=1, keepdim=True)
-    class_id = 9
     torch.save(carriers, os.path.join(experiment_directory, "carriers.pth"))
 
     # Run!
     #optimizer = lambda x : torch.optim.SGD(x, lr=1) # Doesn't produce good loss
-    optimizer = lambda x : torch.optim.Adam(x, lr=0.1)
+    optimizer = lambda x : torch.optim.AdamW(x, lr=0.1)
     epochs = 100
     batch_size = 32
-    marked_images = main(experiment_directory, marking_network, images, original_indexes, carriers, class_id, 
-                         overwrite=True, optimizer_fn=optimizer, epochs=epochs, batch_size=batch_size)
+    output_directory = os.path.join(experiment_directory, "marked_images")
+    marked_images = main(output_directory, marking_network, images, original_indexes, carriers, 
+                         class_id, NORMALIZE_CIFAR10, optimizer, tensorboard_log_directory, epochs=epochs, 
+                         batch_size=batch_size, overwrite=True)
 
     # Show marked images in Tensorboard
-    tensorboard_log_directory = "runs/radioactive"
     tensorboard_summary_writer = SummaryWriter(log_dir=tensorboard_log_directory)
     images_for_tensorboard = [transforms.ToTensor()(x) for x in marked_images]
     img_grid = torchvision.utils.make_grid(images_for_tensorboard, nrow=16)
